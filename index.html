@@ -84,7 +84,7 @@
             startNewAuctionBtn: document.getElementById('start-new-auction-btn'),
             participantsList: document.getElementById('participants-list'),
             logoutBtn: document.getElementById('logout-btn'),
-            adminButtonContainer: document.getElementById('admin-button-container') // Nuovo elemento
+            adminButtonContainer: document.getElementById('admin-button-container')
         };
 
         function render() {
@@ -94,8 +94,7 @@
             elements.biddingStatus.classList.add('hidden');
             elements.waitingMessage.classList.add('hidden');
             elements.bidForm.classList.add('hidden');
-            elements.adminButtonContainer.classList.add('hidden'); // Nasconde sempre il bottone admin
-            elements.startNewAuctionBtn.classList.add('hidden'); // Nasconde il bottone "Avvia Nuova Asta"
+            elements.startNewAuctionBtn.classList.add('hidden');
 
             elements.participantsList.innerHTML = '';
             appState.allParticipants.forEach(p => {
@@ -142,7 +141,6 @@
             const name = elements.nameInput.value.trim();
             if (name) {
                 const initialCredits = 300;
-                // Salva i dati nella collezione pubblica
                 const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
                 await setDoc(participantRef, { name: name, credits: initialCredits, userId: userId });
 
@@ -208,19 +206,18 @@
                 let winningParticipantId = null;
                 let winningParticipantName = null;
                 
-                let bidsFound = false; // NUOVA VARIABILE
+                let bidsFound = false;
 
                 bids.forEach(bid => {
                     if (bid.amount > winningBid) {
                         winningBid = bid.amount;
                         winningParticipantId = bid.userId;
                         winningParticipantName = bid.name;
-                        bidsFound = true; // Imposta su true se trovi un'offerta valida
+                        bidsFound = true;
                     }
                 });
 
-                if (bidsFound) { // Esegue l'aggiornamento solo se ci sono offerte valide
-                    // Aggiorna i crediti del vincitore
+                if (bidsFound) {
                     const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, winningParticipantId);
                     const winnerSnap = await getDoc(winnerRef);
                     if (winnerSnap.exists()) {
@@ -229,13 +226,11 @@
                         await updateDoc(winnerRef, { credits: newCredits });
                     }
                     
-                    // Salva il risultato dell'asta
                     await updateDoc(auctionRef, {
                         winningBid: winningBid,
                         winningParticipant: winningParticipantName
                     });
                 } else {
-                    // Nessun vincitore se non ci sono offerte valide
                     await updateDoc(auctionRef, {
                         winningBid: null,
                         winningParticipant: null
@@ -243,20 +238,6 @@
                 }
             }
 
-            // Reset dello stato per la nuova asta
-            await setDoc(auctionRef, {
-                bids: [],
-                winningBid: null,
-                winningParticipant: null
-            });
-
-            appState.hasSubmittedBid = false;
-            elements.bidAmountInput.value = '';
-            render();
-        }
-                   
-
-            // Reset dello stato per la nuova asta
             await setDoc(auctionRef, {
                 bids: [],
                 winningBid: null,
@@ -268,7 +249,6 @@
             render();
         }
 
-        // Modifica del listener per i partecipanti
         function setupListeners() {
             const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
             onSnapshot(participantRef, (docSnap) => {
@@ -286,7 +266,6 @@
             });
         }
 
-        // Modifica del listener per lo stato dell'asta
         function setupAuctionStateListener() {
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
             onSnapshot(auctionRef, (docSnap) => {
@@ -297,11 +276,9 @@
                     appState.winningParticipant = data.winningParticipant;
                     
                     if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
-                        // Se l'asta è finita, resetta lo stato di bid
                         appState.hasSubmittedBid = false;
                         elements.bidAmountInput.value = '';
                     } else {
-                        // Se un nuovo giro è iniziato, resetta i dati del vincitore
                         appState.winningBid = null;
                         appState.winningParticipant = null;
                     }
@@ -331,18 +308,23 @@
             closeModalBtn.onclick = () => modal.classList.add('hidden');
         }
 
-        // *** LA MODIFICA È QUI ***
+        window.addEventListener('beforeunload', async (event) => {
+            if (userId) {
+                try {
+                    const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
+                    await deleteDoc(publicParticipantRef);
+                    console.log("Documento partecipante rimosso automaticamente.");
+                } catch (error) {
+                    console.error("Errore durante la rimozione automatica del partecipante:", error);
+                }
+            }
+        });
+        
         async function logout() {
-            // Elimina il documento del partecipante dalla lista pubblica
             const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
             await deleteDoc(publicParticipantRef);
-            
-            // Disconnette l'utente
             await signOut(auth);
-            
-            // Reinizializza lo stato dell'app
-            appState.currentScreen = 'auth';
-            location.reload(); // Ricarica la pagina per resettare completamente lo stato
+            location.reload();
         }
         
         window.onload = async () => {
@@ -417,4 +399,3 @@
 
 </body>
 </html>
-
