@@ -207,16 +207,20 @@
                 let winningBid = 0;
                 let winningParticipantId = null;
                 let winningParticipantName = null;
+                
+                let bidsFound = false; // NUOVA VARIABILE
 
                 bids.forEach(bid => {
                     if (bid.amount > winningBid) {
                         winningBid = bid.amount;
                         winningParticipantId = bid.userId;
                         winningParticipantName = bid.name;
+                        bidsFound = true; // Imposta su true se trovi un'offerta valida
                     }
                 });
 
-                if (winningParticipantId) {
+                if (bidsFound) { // Esegue l'aggiornamento solo se ci sono offerte valide
+                    // Aggiorna i crediti del vincitore
                     const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, winningParticipantId);
                     const winnerSnap = await getDoc(winnerRef);
                     if (winnerSnap.exists()) {
@@ -224,8 +228,33 @@
                         const newCredits = currentCredits - winningBid;
                         await updateDoc(winnerRef, { credits: newCredits });
                     }
+                    
+                    // Salva il risultato dell'asta
+                    await updateDoc(auctionRef, {
+                        winningBid: winningBid,
+                        winningParticipant: winningParticipantName
+                    });
+                } else {
+                    // Nessun vincitore se non ci sono offerte valide
+                    await updateDoc(auctionRef, {
+                        winningBid: null,
+                        winningParticipant: null
+                    });
                 }
             }
+
+            // Reset dello stato per la nuova asta
+            await setDoc(auctionRef, {
+                bids: [],
+                winningBid: null,
+                winningParticipant: null
+            });
+
+            appState.hasSubmittedBid = false;
+            elements.bidAmountInput.value = '';
+            render();
+        }
+                   
 
             // Reset dello stato per la nuova asta
             await setDoc(auctionRef, {
@@ -388,3 +417,4 @@
 
 </body>
 </html>
+
