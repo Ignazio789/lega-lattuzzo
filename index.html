@@ -51,17 +51,32 @@
                     const app = initializeApp(firebaseConfig);
                     db = getFirestore(app);
                     auth = getAuth(app);
-                    // Accedi sempre in modo anonimo per evitare errori con il custom token
-                    await signInAnonymously(auth);
+
+                    // Tenta di accedere con il token personalizzato, se disponibile.
+                    // Se fallisce, passa all'accesso anonimo per assicurare che l'app funzioni.
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                            console.log("Accesso con token personalizzato riuscito.");
+                        } else {
+                            await signInAnonymously(auth);
+                            console.log("Accesso anonimo riuscito.");
+                        }
+                    } catch (authError) {
+                        console.warn("Il token personalizzato non ha funzionato, riprovo con l'accesso anonimo:", authError);
+                        await signInAnonymously(auth);
+                        console.log("Accesso anonimo di fallback riuscito.");
+                    }
+
                     userId = auth.currentUser.uid;
-                    console.log("Firebase initialized. User ID:", userId);
+                    console.log("Firebase inizializzato. ID utente:", userId);
                     setupListeners();
                 } else {
-                    console.error("Configurazione Firebase non trovata. Inserisci le tue credenziali.");
+                    console.error("Configurazione Firebase non trovata.");
                     showModal("Errore di connessione: Incolla le tue credenziali di Firebase (apiKey, authDomain, etc.) nel codice per far funzionare l'app.");
                 }
             } catch (error) {
-                console.error("Errore durante l'inizializzazione di Firebase:", error);
+                console.error("Errore generico durante l'inizializzazione di Firebase:", error);
                 showModal("Errore durante l'inizializzazione di Firebase. Controlla la tua configurazione.");
             }
         }
@@ -73,7 +88,7 @@
             participantCredits: 0,
             currentPlayer: '', 
             bids: [],
-            totalParticipants: 10,
+            totalParticipants: 0, // Inizializzato a 0, sarà aggiornato dinamicamente
             hasSubmittedBid: false,
             winningBid: null,
             winningParticipant: null,
@@ -133,7 +148,7 @@
                     elements.displayUserId.textContent = `Il tuo ID: ${userId}`;
                     elements.myCreditsDisplay.textContent = `Crediti rimanenti: ${appState.participantCredits}`;
 
-                    if (appState.bids.length === appState.totalParticipants) {
+                    if (appState.bids.length === appState.totalParticipants && appState.totalParticipants > 0) {
                         elements.resultsScreen.classList.remove('hidden');
                         elements.winningBidDisplay.textContent = appState.winningBid ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
                         elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
@@ -270,7 +285,8 @@
                 const data = docSnap.data();
                 if (data) {
                     appState.bids = data.bids || [];
-                    if (appState.bids.length === appState.totalParticipants) {
+                    // Aggiorna il numero di partecipanti dinamicamente
+                    if (appState.bids.length === appState.totalParticipants && appState.totalParticipants > 0) {
                         const { winningBid, winningParticipantName } = await calculateAndSaveWinner(appState.bids);
                         appState.winningBid = winningBid;
                         appState.winningParticipant = winningParticipantName;
@@ -290,6 +306,8 @@
                 querySnapshot.forEach(doc => {
                     appState.allParticipants.push(doc.data());
                 });
+                // Aggiorna il numero totale di partecipanti
+                appState.totalParticipants = appState.allParticipants.length;
                 render();
             });
         }
