@@ -141,25 +141,37 @@
         }
 
         // Save participant name and initialize credits
-        async function saveParticipantName() {
-            const name = elements.nameInput.value.trim();
-            if (name) {
-                // Path to public participants list
-                const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
-                
-                // Save name to both private and public collections with initial credits
-                const initialCredits = 300;
-                await setDoc(doc(db, 'artifacts', firebaseConfig.appId, 'users', userId, 'profile', 'data'), { name: name, credits: initialCredits });
-                await setDoc(publicParticipantRef, { name: name, userId: userId });
+        // Save participant name and initialize credits
+async function saveParticipantName() {
+    const name = elements.nameInput.value.trim();
+    if (name) {
+        // Path to public participants list
+        const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
+        
+        // Save name to both private and public collections with initial credits
+        const initialCredits = 300;
+        await setDoc(doc(db, 'artifacts', firebaseConfig.appId, 'users', userId, 'profile', 'data'), { name: name, credits: initialCredits });
+        await setDoc(publicParticipantRef, { name: name, userId: userId });
 
-                appState.participantName = name;
-                appState.participantCredits = initialCredits;
-                appState.currentScreen = 'main';
-                render();
-            } else {
-                showModal('Inserisci un nome valido.');
-            }
+        // Aggiungi questa riga per inizializzare il documento dell'asta
+        const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+        const auctionSnap = await getDoc(auctionRef);
+        if (!auctionSnap.exists()) {
+            await setDoc(auctionRef, {
+                bids: [],
+                winningBid: null,
+                winningParticipant: null
+            });
         }
+
+        appState.participantName = name;
+        appState.participantCredits = initialCredits;
+        appState.currentScreen = 'main';
+        render();
+    } else {
+        showModal('Inserisci un nome valido.');
+    }
+}
 
         // Submit bid
         async function submitBid() {
@@ -370,4 +382,5 @@
 
 </body>
 </html>
+
 
