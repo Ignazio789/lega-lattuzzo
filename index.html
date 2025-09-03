@@ -28,7 +28,7 @@
         const AUCTION_STATE_DOC_ID = "auction_state";
         const AUCTION_COLLECTION_ID = "auction_rounds";
         const PARTICIPANTS_COLLECTION_ID = "participants";
-        const ADMIN_USER_ID = "B4CmX6ZQW3NFbJTn02OoMtBkf5N2";
+        const ADMIN_SECRET_CODE = "lattuzo2025"; // <-- IMPOSTA IL TUO CODICE SEGRETO QUI
 
         async function initializeFirebase() {
             try {
@@ -60,13 +60,15 @@
             hasSubmittedBid: false,
             winningBid: null,
             winningParticipant: null,
-            allParticipants: []
+            allParticipants: [],
+            isAdmin: false // Aggiunto stato isAdmin
         };
 
         const elements = {
             authScreen: document.getElementById('auth-screen'),
             mainScreen: document.getElementById('main-screen'),
             nameInput: document.getElementById('name-input'),
+            adminCodeInput: document.getElementById('admin-code-input'), // Nuovo elemento
             saveNameBtn: document.getElementById('save-name-btn'),
             displayName: document.getElementById('display-name'),
             displayUserId: document.getElementById('display-user-id'),
@@ -123,7 +125,7 @@
                         elements.winningBidDisplay.textContent = appState.winningBid !== null ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
                         elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
                         
-                        if (userId === ADMIN_USER_ID) {
+                        if (appState.isAdmin) { // Controllo basato sullo stato di isAdmin
                             elements.startNewAuctionBtn.classList.remove('hidden');
                         }
                     } else if (appState.hasSubmittedBid) {
@@ -139,11 +141,15 @@
 
         async function saveParticipantName() {
             const name = elements.nameInput.value.trim();
+            const adminCode = elements.adminCodeInput.value.trim(); // Nuovo
+            
             if (name) {
                 const initialCredits = 300;
+                const isAdmin = adminCode === ADMIN_SECRET_CODE; // Nuovo
+                
                 const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
-                await setDoc(participantRef, { name: name, credits: initialCredits, userId: userId });
-
+                await setDoc(participantRef, { name: name, credits: initialCredits, userId: userId, isAdmin: isAdmin }); // Nuovo campo isAdmin
+                
                 const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
                 const auctionSnap = await getDoc(auctionRef);
                 if (!auctionSnap.exists()) {
@@ -156,6 +162,7 @@
                 
                 appState.participantName = name;
                 appState.participantCredits = initialCredits;
+                appState.isAdmin = isAdmin; // Nuovo
                 appState.currentScreen = 'main';
                 render();
             } else {
@@ -197,7 +204,6 @@
         }
 
         async function startNewAuction() {
-            // Logica di calcolo del vincitore gestita solo dall'admin
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
             const auctionSnap = await getDoc(auctionRef);
             
@@ -229,13 +235,11 @@
                 }
             }
             
-            // Aggiorna lo stato dell'asta per visualizzare i risultati e poi avvia un timer per resettare l'asta
             await updateDoc(auctionRef, {
                 winningBid: winningBid,
                 winningParticipant: winningParticipantName
             });
 
-            // Resetta l'asta dopo 5 secondi in modo che tutti i client possano vedere il risultato
             setTimeout(async () => {
                 await setDoc(auctionRef, {
                     bids: [],
@@ -254,6 +258,7 @@
                 if (docSnap.exists() && docSnap.data().name) {
                     appState.participantName = docSnap.data().name;
                     appState.participantCredits = docSnap.data().credits || 0;
+                    appState.isAdmin = docSnap.data().isAdmin || false; // Nuovo
                     appState.currentScreen = 'main';
                     setupAuctionStateListener();
                     setupParticipantsListener();
@@ -278,7 +283,6 @@
                         appState.hasSubmittedBid = false;
                         elements.bidAmountInput.value = '';
                     } else {
-                        // Resetta i dati del vincitore quando inizia una nuova asta
                         appState.winningBid = null;
                         appState.winningParticipant = null;
                     }
@@ -332,6 +336,7 @@
         <p class="text-center text-gray-600 mb-4">Inserisci il tuo nome per iniziare.</p>
         <div class="space-y-4">
             <input type="text" id="name-input" placeholder="Il tuo nome" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <input type="password" id="admin-code-input" placeholder="Codice Admin (opzionale)" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <button id="save-name-btn" class="w-full bg-indigo-600 text-white p-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors duration-200">Salva Nome</button>
         </div>
     </div>
@@ -387,4 +392,3 @@
 
 </body>
 </html>
-
