@@ -202,11 +202,11 @@
             
             let winningBid = null;
             let winningParticipantName = null;
+            let winningParticipantId = null;
 
             if (auctionSnap.exists()) {
                 const bids = auctionSnap.data().bids || [];
                 let maxBid = 0;
-                let winningParticipantId = null;
 
                 bids.forEach(bid => {
                     if (bid.amount > maxBid) {
@@ -228,23 +228,15 @@
                 }
             }
 
-            // Aggiorna lo stato dell'asta per visualizzare i risultati
-            await updateDoc(auctionRef, {
+            await setDoc(auctionRef, {
+                bids: [],
                 winningBid: winningBid,
                 winningParticipant: winningParticipantName
             });
 
-            // Avvia un timer per resettare l'asta dopo un po'
-            setTimeout(async () => {
-                await setDoc(auctionRef, {
-                    bids: [],
-                    winningBid: null,
-                    winningParticipant: null
-                });
-                appState.hasSubmittedBid = false;
-                elements.bidAmountInput.value = '';
-                render();
-            }, 5000); // Resetta dopo 5 secondi
+            appState.hasSubmittedBid = false;
+            elements.bidAmountInput.value = '';
+            render();
         }
 
         function setupListeners() {
@@ -277,6 +269,7 @@
                         appState.hasSubmittedBid = false;
                         elements.bidAmountInput.value = '';
                     } else {
+                        // Resetta i dati del vincitore quando inizia una nuova asta
                         appState.winningBid = null;
                         appState.winningParticipant = null;
                     }
