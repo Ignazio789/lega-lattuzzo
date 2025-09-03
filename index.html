@@ -28,7 +28,7 @@
         const AUCTION_STATE_DOC_ID = "auction_state";
         const AUCTION_COLLECTION_ID = "auction_rounds";
         const PARTICIPANTS_COLLECTION_ID = "participants";
-        const ADMIN_USER_ID = "metti_qui_l'id_del_tuo_admin"; // <-- CAMBIA QUESTO ID
+        const ADMIN_USER_ID = "metti_qui_l'id_del_tuo_admin";
 
         async function initializeFirebase() {
             try {
@@ -197,56 +197,54 @@
         }
 
         async function startNewAuction() {
-            // Logica di calcolo del vincitore gestita solo dall'admin
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
             const auctionSnap = await getDoc(auctionRef);
+            
+            let winningBid = null;
+            let winningParticipantName = null;
+
             if (auctionSnap.exists()) {
                 const bids = auctionSnap.data().bids || [];
-                let winningBid = 0;
+                let maxBid = 0;
                 let winningParticipantId = null;
-                let winningParticipantName = null;
-                
-                let bidsFound = false;
 
                 bids.forEach(bid => {
-                    if (bid.amount > winningBid) {
-                        winningBid = bid.amount;
+                    if (bid.amount > maxBid) {
+                        maxBid = bid.amount;
                         winningParticipantId = bid.userId;
-                        winningParticipantName = bid.name;
-                        bidsFound = true;
                     }
                 });
 
-                if (bidsFound) {
+                if (winningParticipantId) {
                     const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, winningParticipantId);
                     const winnerSnap = await getDoc(winnerRef);
                     if (winnerSnap.exists()) {
                         const currentCredits = winnerSnap.data().credits;
-                        const newCredits = currentCredits - winningBid;
+                        const newCredits = currentCredits - maxBid;
                         await updateDoc(winnerRef, { credits: newCredits });
+                        winningParticipantName = winnerSnap.data().name;
+                        winningBid = maxBid;
                     }
-                    
-                    await updateDoc(auctionRef, {
-                        winningBid: winningBid,
-                        winningParticipant: winningParticipantName
-                    });
-                } else {
-                    await updateDoc(auctionRef, {
-                        winningBid: null,
-                        winningParticipant: null
-                    });
                 }
             }
 
-            await setDoc(auctionRef, {
-                bids: [],
-                winningBid: null,
-                winningParticipant: null
+            // Aggiorna lo stato dell'asta per visualizzare i risultati
+            await updateDoc(auctionRef, {
+                winningBid: winningBid,
+                winningParticipant: winningParticipantName
             });
 
-            appState.hasSubmittedBid = false;
-            elements.bidAmountInput.value = '';
-            render();
+            // Avvia un timer per resettare l'asta dopo un po'
+            setTimeout(async () => {
+                await setDoc(auctionRef, {
+                    bids: [],
+                    winningBid: null,
+                    winningParticipant: null
+                });
+                appState.hasSubmittedBid = false;
+                elements.bidAmountInput.value = '';
+                render();
+            }, 5000); // Resetta dopo 5 secondi
         }
 
         function setupListeners() {
@@ -307,18 +305,6 @@
             modal.classList.remove('hidden');
             closeModalBtn.onclick = () => modal.classList.add('hidden');
         }
-
-        window.addEventListener('beforeunload', async (event) => {
-            if (userId) {
-                try {
-                    const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
-                    await deleteDoc(publicParticipantRef);
-                    console.log("Documento partecipante rimosso automaticamente.");
-                } catch (error) {
-                    console.error("Errore durante la rimozione automatica del partecipante:", error);
-                }
-            }
-        });
         
         async function logout() {
             const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
