@@ -28,7 +28,7 @@
         const AUCTION_STATE_DOC_ID = "auction_state";
         const AUCTION_COLLECTION_ID = "auction_rounds";
         const PARTICIPANTS_COLLECTION_ID = "participants";
-        const ADMIN_SECRET_CODE = "lattuzo2025"; // <-- IMPOSTA IL TUO CODICE SEGRETO QUI
+        const ADMIN_SECRET_CODE = "lattuzo2025";
 
         async function initializeFirebase() {
             try {
@@ -61,14 +61,14 @@
             winningBid: null,
             winningParticipant: null,
             allParticipants: [],
-            isAdmin: false // Aggiunto stato isAdmin
+            isAdmin: false
         };
 
         const elements = {
             authScreen: document.getElementById('auth-screen'),
             mainScreen: document.getElementById('main-screen'),
             nameInput: document.getElementById('name-input'),
-            adminCodeInput: document.getElementById('admin-code-input'), // Nuovo elemento
+            adminCodeInput: document.getElementById('admin-code-input'),
             saveNameBtn: document.getElementById('save-name-btn'),
             displayName: document.getElementById('display-name'),
             displayUserId: document.getElementById('display-user-id'),
@@ -125,7 +125,7 @@
                         elements.winningBidDisplay.textContent = appState.winningBid !== null ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
                         elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
                         
-                        if (appState.isAdmin) { // Controllo basato sullo stato di isAdmin
+                        if (appState.isAdmin) {
                             elements.startNewAuctionBtn.classList.remove('hidden');
                         }
                     } else if (appState.hasSubmittedBid) {
@@ -141,14 +141,14 @@
 
         async function saveParticipantName() {
             const name = elements.nameInput.value.trim();
-            const adminCode = elements.adminCodeInput.value.trim(); // Nuovo
+            const adminCode = elements.adminCodeInput.value.trim();
             
             if (name) {
                 const initialCredits = 300;
-                const isAdmin = adminCode === ADMIN_SECRET_CODE; // Nuovo
+                const isAdmin = adminCode === ADMIN_SECRET_CODE;
                 
                 const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
-                await setDoc(participantRef, { name: name, credits: initialCredits, userId: userId, isAdmin: isAdmin }); // Nuovo campo isAdmin
+                await setDoc(participantRef, { name: name, credits: initialCredits, userId: userId, isAdmin: isAdmin });
                 
                 const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
                 const auctionSnap = await getDoc(auctionRef);
@@ -162,7 +162,7 @@
                 
                 appState.participantName = name;
                 appState.participantCredits = initialCredits;
-                appState.isAdmin = isAdmin; // Nuovo
+                appState.isAdmin = isAdmin;
                 appState.currentScreen = 'main';
                 render();
             } else {
@@ -258,7 +258,7 @@
                 if (docSnap.exists() && docSnap.data().name) {
                     appState.participantName = docSnap.data().name;
                     appState.participantCredits = docSnap.data().credits || 0;
-                    appState.isAdmin = docSnap.data().isAdmin || false; // Nuovo
+                    appState.isAdmin = docSnap.data().isAdmin || false;
                     appState.currentScreen = 'main';
                     setupAuctionStateListener();
                     setupParticipantsListener();
