@@ -197,6 +197,7 @@
         }
 
         async function startNewAuction() {
+            // Logica di calcolo del vincitore gestita solo dall'admin
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
             const auctionSnap = await getDoc(auctionRef);
             
@@ -227,16 +228,24 @@
                     }
                 }
             }
-
-            await setDoc(auctionRef, {
-                bids: [],
+            
+            // Aggiorna lo stato dell'asta per visualizzare i risultati e poi avvia un timer per resettare l'asta
+            await updateDoc(auctionRef, {
                 winningBid: winningBid,
                 winningParticipant: winningParticipantName
             });
 
-            appState.hasSubmittedBid = false;
-            elements.bidAmountInput.value = '';
-            render();
+            // Resetta l'asta dopo 5 secondi in modo che tutti i client possano vedere il risultato
+            setTimeout(async () => {
+                await setDoc(auctionRef, {
+                    bids: [],
+                    winningBid: null,
+                    winningParticipant: null
+                });
+                appState.hasSubmittedBid = false;
+                elements.bidAmountInput.value = '';
+                render();
+            }, 5000);
         }
 
         function setupListeners() {
