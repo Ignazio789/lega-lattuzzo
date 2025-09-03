@@ -10,21 +10,35 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        setLogLevel('debug'); // Imposta il livello di log per vedere i messaggi di debug di Firestore
+        setLogLevel('debug');
 
-        // Variabili globali fornite dall'ambiente, non modificare.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         let db, auth;
         let userId;
+        let isOnline = false;
+
+        const FIREBASE_CONFIG_KEY = `firebase-config-${appId}`;
 
         // Funzione per inizializzare Firebase
         async function initializeFirebase() {
             try {
-                if (Object.keys(firebaseConfig).length > 0) {
-                    const app = initializeApp(firebaseConfig);
+                let config = null;
+
+                // 1. Prova a usare la configurazione di ambiente
+                if (typeof __firebase_config !== 'undefined' && Object.keys(JSON.parse(__firebase_config)).length > 0) {
+                    config = JSON.parse(__firebase_config);
+                    console.log("Configurazione Firebase caricata dall'ambiente.");
+                } 
+                // 2. Altrimenti, prova a caricare da localStorage
+                else if (localStorage.getItem(FIREBASE_CONFIG_KEY)) {
+                    config = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY));
+                    console.log("Configurazione Firebase caricata da localStorage.");
+                }
+
+                if (config) {
+                    const app = initializeApp(config);
                     db = getFirestore(app);
                     auth = getAuth(app);
 
@@ -34,26 +48,39 @@
                         await signInAnonymously(auth);
                     }
                     userId = auth.currentUser.uid;
+                    isOnline = true;
                     console.log("Firebase inizializzato. ID utente:", userId);
                     setupListeners();
+                    document.getElementById('connection-status').textContent = 'Connesso a Firebase';
+                    document.getElementById('connection-status').classList.remove('bg-red-500');
+                    document.getElementById('connection-status').classList.add('bg-green-500');
+                    elements.configModal.classList.add('hidden');
+                    appState.currentScreen = 'auth'; // Torna alla schermata di autenticazione per procedere
+                    render();
                 } else {
-                    console.error("Configurazione Firebase non trovata.");
-                    showModal("Errore di connessione: Credenziali Firebase non disponibili.");
+                    throw new Error('Credenziali Firebase non disponibili.');
                 }
+
             } catch (error) {
                 console.error("Errore generico durante l'inizializzazione di Firebase:", error);
-                showModal("Errore durante l'inizializzazione di Firebase. Controlla la tua configurazione.");
+                document.getElementById('connection-status').textContent = 'Disconnesso da Firebase';
+                document.getElementById('connection-status').classList.remove('bg-green-500');
+                document.getElementById('connection-status').classList.add('bg-red-500');
+                isOnline = false;
+                userId = 'offline-user';
+                db = null;
+                auth = null;
+                showModal("Errore durante l'inizializzazione di Firebase. Inserisci le tue credenziali per connetterti.", true);
             }
         }
 
-        // Functions for managing app state
         const appState = {
             currentScreen: 'auth',
             participantName: '',
             participantCredits: 0,
             currentPlayer: '', 
             bids: [],
-            totalParticipants: 0, // Inizializzato a 0, sarà aggiornato dinamicamente
+            totalParticipants: 0,
             hasSubmittedBid: false,
             winningBid: null,
             winningParticipant: null,
@@ -67,7 +94,7 @@
             saveNameBtn: document.getElementById('save-name-btn'),
             displayName: document.getElementById('display-name'),
             displayUserId: document.getElementById('display-user-id'),
-            myCreditsDisplay: document.getElementById('my-credits-display'), // New element for credits
+            myCreditsDisplay: document.getElementById('my-credits-display'),
             currentPlayerDisplay: document.getElementById('current-player-display'),
             bidForm: document.getElementById('bid-form'),
             bidAmountInput: document.getElementById('bid-amount-input'),
@@ -79,10 +106,14 @@
             winningParticipantDisplay: document.getElementById('winning-participant-display'),
             waitingMessage: document.getElementById('waiting-message'),
             startNewAuctionBtn: document.getElementById('start-new-auction-btn'),
-            participantsList: document.getElementById('participants-list')
+            participantsList: document.getElementById('participants-list'),
+            configModal: document.getElementById('config-modal'),
+            configTextarea: document.getElementById('firebase-config-textarea'),
+            saveConfigBtn: document.getElementById('save-config-btn'),
+            openConfigModalBtn: document.getElementById('open-config-modal-btn'),
+            connectionStatus: document.getElementById('connection-status')
         };
 
-        // Update the screen based on the state
         function render() {
             elements.authScreen.classList.add('hidden');
             elements.mainScreen.classList.add('hidden');
@@ -90,8 +121,7 @@
             elements.biddingStatus.classList.add('hidden');
             elements.waitingMessage.classList.add('hidden');
             elements.bidForm.classList.add('hidden');
-            
-            // Render participant list without credits
+
             elements.participantsList.innerHTML = '';
             appState.allParticipants.forEach(p => {
                 const li = document.createElement('li');
@@ -126,10 +156,18 @@
                     }
                     break;
             }
+
+            elements.saveNameBtn.disabled = !isOnline;
+            elements.submitBidBtn.disabled = !isOnline;
+            elements.passBidBtn.disabled = !isOnline;
+            elements.startNewAuctionBtn.disabled = !isOnline;
         }
 
-        // Salva il nome del partecipante e inizializza i crediti
         async function saveParticipantName() {
+            if (!isOnline) {
+                showModal('Funzionalità non disponibile, connettiti prima a Firebase.');
+                return;
+            }
             const name = elements.nameInput.value.trim();
             if (name) {
                 appState.participantName = name;
@@ -149,8 +187,11 @@
             }
         }
 
-        // Invia l'offerta
         async function submitBid() {
+            if (!isOnline) {
+                showModal('Funzionalità non disponibile, connettiti prima a Firebase.');
+                return;
+            }
             const bidAmount = parseInt(elements.bidAmountInput.value, 10);
             if (isNaN(bidAmount) || bidAmount < 0) {
                 showModal('Inserisci un importo valido.');
@@ -167,8 +208,11 @@
             await setDoc(auctionRef, { bids: updatedBids }, { merge: true });
         }
 
-        // Passa l'offerta
         async function passBid() {
+            if (!isOnline) {
+                showModal('Funzionalità non disponibile, connettiti prima a Firebase.');
+                return;
+            }
             appState.hasSubmittedBid = true;
             render();
             const auctionRef = doc(db, 'artifacts', appId, 'public', 'data', 'auction_rounds', 'auction_state');
@@ -179,8 +223,11 @@
             await setDoc(auctionRef, { bids: updatedBids }, { merge: true });
         }
 
-        // Resetta l'asta per un nuovo round
         async function startNewAuction() {
+            if (!isOnline) {
+                showModal('Funzionalità non disponibile, connettiti prima a Firebase.');
+                return;
+            }
             const auctionRef = doc(db, 'artifacts', appId, 'public', 'data', 'auction_rounds', 'auction_state');
             await setDoc(auctionRef, {
                 bids: [],
@@ -192,8 +239,9 @@
             render();
         }
 
-        // Calcola il vincitore e deduci i crediti
         async function calculateAndSaveWinner(bids) {
+            if (!isOnline) return { winningBid: null, winningParticipantName: null };
+
             let winningBid = 0;
             let winningParticipantId = null;
             let winningParticipantName = null;
@@ -219,8 +267,8 @@
             return { winningBid, winningParticipantName };
         }
 
-        // Configura i listener di Firestore
         function setupListeners() {
+            if (!isOnline) return;
             const participantRef = doc(db, 'artifacts', appId, 'users', userId);
             onSnapshot(participantRef, (docSnap) => {
                 if (docSnap.exists() && docSnap.data().name) {
@@ -237,8 +285,8 @@
             });
         }
 
-        // Listener per lo stato principale dell'asta
         function setupAuctionStateListener() {
+            if (!isOnline) return;
             const auctionRef = doc(db, 'artifacts', appId, 'public', 'data', 'auction_rounds', 'auction_state');
             onSnapshot(auctionRef, async (docSnap) => {
                 const data = docSnap.data();
@@ -256,8 +304,8 @@
             });
         }
 
-        // Listener per tutti i partecipanti
         function setupParticipantsListener() {
+            if (!isOnline) return;
             const participantsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'participants');
             onSnapshot(participantsCollection, (querySnapshot) => {
                 appState.allParticipants = [];
@@ -269,28 +317,60 @@
             });
         }
 
-        // Mostra i messaggi modali
-        function showModal(message) {
+        function showModal(message, isConfig = false) {
             const modal = document.getElementById('modal');
             const modalMessage = document.getElementById('modal-message');
             const closeModalBtn = document.getElementById('close-modal-btn');
             modalMessage.textContent = message;
-            modal.classList.remove('hidden');
+            if (isConfig) {
+                elements.configModal.classList.remove('hidden');
+            } else {
+                modal.classList.remove('hidden');
+            }
             closeModalBtn.onclick = () => modal.classList.add('hidden');
         }
+
+        async function saveConfig() {
+            try {
+                const config = JSON.parse(elements.configTextarea.value);
+                localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(config));
+                elements.configModal.classList.add('hidden');
+                await initializeFirebase();
+            } catch (error) {
+                showModal('Configurazione non valida. Assicurati che sia un oggetto JSON corretto.');
+            }
+        }
         
-        // Event Listeners
         window.onload = async () => {
             await initializeFirebase();
         };
+
         elements.saveNameBtn.addEventListener('click', saveParticipantName);
         elements.bidForm.addEventListener('submit', (e) => { e.preventDefault(); submitBid(); });
         elements.passBidBtn.addEventListener('click', passBid);
         elements.startNewAuctionBtn.addEventListener('click', startNewAuction);
+        elements.saveConfigBtn.addEventListener('click', saveConfig);
+        elements.openConfigModalBtn.addEventListener('click', () => {
+            elements.configModal.classList.remove('hidden');
+            const savedConfig = localStorage.getItem(FIREBASE_CONFIG_KEY);
+            if (savedConfig) {
+                elements.configTextarea.value = savedConfig;
+            }
+        });
 
     </script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans p-4 flex flex-col items-center justify-center min-h-screen">
+
+    <!-- Status di connessione -->
+    <div id="connection-status" class="fixed top-4 right-4 p-2 rounded-lg text-white font-semibold text-sm transition-colors duration-200">
+        Disconnesso da Firebase
+    </div>
+    
+    <!-- Pulsante per aprire la configurazione -->
+    <button id="open-config-modal-btn" class="fixed bottom-4 right-4 bg-gray-700 text-white p-3 rounded-full shadow-lg hover:bg-gray-800 transition-colors duration-200 z-50">
+        Configura
+    </button>
 
     <!-- Schermata Autenticazione Nome -->
     <div id="auth-screen" class="hidden bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
@@ -298,7 +378,7 @@
         <p class="text-center text-gray-600 mb-4">Inserisci il tuo nome per iniziare.</p>
         <div class="space-y-4">
             <input type="text" id="name-input" placeholder="Il tuo nome" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <button id="save-name-btn" class="w-full bg-indigo-600 text-white p-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors duration-200">Salva Nome</button>
+            <button id="save-name-btn" class="w-full bg-indigo-600 text-white p-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors duration-200" disabled>Salva Nome</button>
         </div>
     </div>
 
@@ -322,8 +402,8 @@
             <form id="bid-form" class="space-y-4 hidden">
                 <input type="number" id="bid-amount-input" placeholder="La tua offerta in €" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 <div class="flex space-x-2">
-                    <button type="button" id="pass-bid-btn" class="flex-1 bg-red-500 text-white p-3 rounded-lg font-semibold hover:bg-red-600 transition-colors duration-200">Non Offro</button>
-                    <button type="submit" id="submit-bid-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600 transition-colors duration-200">Offro</button>
+                    <button type="button" id="pass-bid-btn" class="flex-1 bg-red-500 text-white p-3 rounded-lg font-semibold hover:bg-red-600 transition-colors duration-200" disabled>Non Offro</button>
+                    <button type="submit" id="submit-bid-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600 transition-colors duration-200" disabled>Offro</button>
                 </div>
             </form>
         </div>
@@ -333,7 +413,7 @@
             <h3 class="text-xl font-semibold text-gray-700">Risultato Asta</h3>
             <p id="winning-participant-display" class="text-2xl font-bold text-green-600 mt-2"></p>
             <p id="winning-bid-display" class="text-xl text-gray-800 mt-1"></p>
-            <button id="start-new-auction-btn" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200">Avvia Nuova Asta</button>
+            <button id="start-new-auction-btn" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200" disabled>Avvia Nuova Asta</button>
         </div>
 
         <!-- Sezione Lista Partecipanti -->
@@ -344,11 +424,26 @@
     </div>
     
     <!-- Modal per messaggi di errore/info -->
-    <div id="modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
+    <div id="modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
             <p id="modal-message" class="text-center text-gray-700 font-medium mb-4"></p>
             <div class="text-center">
                 <button id="close-modal-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal per la configurazione di Firebase -->
+    <div id="config-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+            <h3 class="text-2xl font-bold text-center mb-4 text-indigo-600">Configura Firebase</h3>
+            <p class="text-center text-gray-600 mb-6">Incolla qui l'oggetto di configurazione JSON dal tuo progetto Firebase. Trovalo su **Impostazioni progetto** -> **Le tue app**.</p>
+            <div class="space-y-4">
+                <textarea id="firebase-config-textarea" class="w-full h-48 p-3 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                <button id="save-config-btn" class="w-full bg-indigo-600 text-white p-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors duration-200">Salva Configurazione</button>
+            </div>
+            <div class="mt-4 text-center text-gray-500">
+                <p>Una volta salvato, ricarica la pagina.</p>
             </div>
         </div>
     </div>
