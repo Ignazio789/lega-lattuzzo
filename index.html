@@ -7,13 +7,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        setLogLevel('debug'); // Imposta il livello di log per vedere i messaggi di debug di Firestore
+        setLogLevel('debug');
 
         // --- IMPORTANTE: INCOLLA QUI LA TUA CONFIGURAZIONE DI FIREBASE ---
-        // Sostituisci i valori con quelli del tuo progetto Firebase.
         const firebaseConfig = {
             apiKey: "AIzaSyCFFkUbEhY6Rn515DbRbLsa5lqQDu1R5Jc",
             authDomain: "app-asta-fanta-lattuzo.firebaseapp.com",
@@ -32,7 +31,6 @@
         const AUCTION_COLLECTION_ID = "auction_rounds"; 
         const PARTICIPANTS_COLLECTION_ID = "participants"; 
 
-        // Function to initialize Firebase
         async function initializeFirebase() {
             try {
                 if (Object.keys(firebaseConfig).length > 0) {
@@ -62,9 +60,9 @@
             currentScreen: 'auth',
             participantName: '',
             participantCredits: 0,
-            currentPlayer: 'Giocatore 1', // Simula il nome di un giocatore da mettere all'asta
+            currentPlayer: 'Giocatore 1',
             bids: [],
-            totalParticipants: 2,
+            totalParticipants: 0,
             hasSubmittedBid: false,
             winningBid: null,
             winningParticipant: null,
@@ -90,10 +88,10 @@
             winningParticipantDisplay: document.getElementById('winning-participant-display'),
             waitingMessage: document.getElementById('waiting-message'),
             startNewAuctionBtn: document.getElementById('start-new-auction-btn'),
-            participantsList: document.getElementById('participants-list')
+            participantsList: document.getElementById('participants-list'),
+            logoutBtn: document.getElementById('logout-btn')
         };
 
-        // Update the screen based on the state
         function render() {
             elements.authScreen.classList.add('hidden');
             elements.mainScreen.classList.add('hidden');
@@ -102,7 +100,6 @@
             elements.waitingMessage.classList.add('hidden');
             elements.bidForm.classList.add('hidden');
 
-            // Render participant list
             elements.participantsList.innerHTML = '';
             appState.allParticipants.forEach(p => {
                 const li = document.createElement('li');
@@ -140,40 +137,33 @@
             }
         }
 
-        // Save participant name and initialize credits
-        // Save participant name and initialize credits
-async function saveParticipantName() {
-    const name = elements.nameInput.value.trim();
-    if (name) {
-        // Path to public participants list
-        const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
-        
-        // Save name to both private and public collections with initial credits
-        const initialCredits = 300;
-        await setDoc(doc(db, 'artifacts', firebaseConfig.appId, 'users', userId, 'profile', 'data'), { name: name, credits: initialCredits });
-        await setDoc(publicParticipantRef, { name: name, userId: userId });
+        async function saveParticipantName() {
+            const name = elements.nameInput.value.trim();
+            if (name) {
+                const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
+                const initialCredits = 300;
+                await setDoc(doc(db, 'artifacts', firebaseConfig.appId, 'users', userId, 'profile', 'data'), { name: name, credits: initialCredits });
+                await setDoc(publicParticipantRef, { name: name, userId: userId });
 
-        // Aggiungi questa riga per inizializzare il documento dell'asta
-        const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
-        const auctionSnap = await getDoc(auctionRef);
-        if (!auctionSnap.exists()) {
-            await setDoc(auctionRef, {
-                bids: [],
-                winningBid: null,
-                winningParticipant: null
-            });
+                const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+                const auctionSnap = await getDoc(auctionRef);
+                if (!auctionSnap.exists()) {
+                    await setDoc(auctionRef, {
+                        bids: [],
+                        winningBid: null,
+                        winningParticipant: null
+                    });
+                }
+
+                appState.participantName = name;
+                appState.participantCredits = initialCredits;
+                appState.currentScreen = 'main';
+                render();
+            } else {
+                showModal('Inserisci un nome valido.');
+            }
         }
 
-        appState.participantName = name;
-        appState.participantCredits = initialCredits;
-        appState.currentScreen = 'main';
-        render();
-    } else {
-        showModal('Inserisci un nome valido.');
-    }
-}
-
-        // Submit bid
         async function submitBid() {
             const bidAmount = parseInt(elements.bidAmountInput.value, 10);
             if (isNaN(bidAmount) || bidAmount <= 0) {
@@ -190,7 +180,6 @@ async function saveParticipantName() {
             
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
             
-            // Add the new bid to the array
             await updateDoc(auctionRef, {
                 bids: [...(appState.bids || []), { userId: userId, name: appState.participantName, amount: bidAmount, timestamp: new Date() }]
             });
@@ -198,19 +187,16 @@ async function saveParticipantName() {
             elements.bidAmountInput.value = '';
         }
 
-        // Pass bid
         async function passBid() {
             appState.hasSubmittedBid = true;
             render();
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
 
-            // Add a "pass" bid (amount 0)
             await updateDoc(auctionRef, {
                 bids: [...(appState.bids || []), { userId: userId, name: appState.participantName, amount: 0, timestamp: new Date() }]
             });
         }
 
-        // Reset the auction for a new round
         async function startNewAuction() {
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
             await setDoc(auctionRef, {
@@ -223,7 +209,6 @@ async function saveParticipantName() {
             render();
         }
 
-        // Calculate the winner and deduct credits
         async function calculateAndSaveWinner(bids) {
             let winningBid = 0;
             let winningParticipantId = null;
@@ -238,7 +223,6 @@ async function saveParticipantName() {
             });
 
             if (winningParticipantId) {
-                // Update credits in the private profile document
                 const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'users', winningParticipantId, 'profile', 'data');
                 const winnerSnap = await getDoc(winnerRef);
                 if (winnerSnap.exists()) {
@@ -251,9 +235,7 @@ async function saveParticipantName() {
             return { winningBid, winningParticipantName };
         }
 
-        // Setup Firestore listeners
         function setupListeners() {
-            // Listen to the private profile to get the user's name and credits
             const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'users', userId, 'profile', 'data');
             onSnapshot(participantRef, (docSnap) => {
                 if (docSnap.exists() && docSnap.data().name) {
@@ -270,7 +252,6 @@ async function saveParticipantName() {
             });
         }
 
-        // Listener for the main auction state
         function setupAuctionStateListener() {
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
             onSnapshot(auctionRef, async (docSnap) => {
@@ -289,7 +270,6 @@ async function saveParticipantName() {
             });
         }
 
-        // Listener for all participants
         function setupParticipantsListener() {
             const participantsCollection = collection(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID);
             onSnapshot(participantsCollection, (querySnapshot) => {
@@ -302,7 +282,6 @@ async function saveParticipantName() {
             });
         }
 
-        // Show modal messages
         function showModal(message) {
             const modal = document.getElementById('modal');
             const modalMessage = document.getElementById('modal-message');
@@ -311,8 +290,13 @@ async function saveParticipantName() {
             modal.classList.remove('hidden');
             closeModalBtn.onclick = () => modal.classList.add('hidden');
         }
+
+        async function logout() {
+            await signOut(auth);
+            appState.currentScreen = 'auth';
+            render();
+        }
         
-        // Event Listeners
         window.onload = async () => {
             await initializeFirebase();
         };
@@ -320,7 +304,7 @@ async function saveParticipantName() {
         elements.bidForm.addEventListener('submit', (e) => { e.preventDefault(); submitBid(); });
         elements.passBidBtn.addEventListener('click', passBid);
         elements.startNewAuctionBtn.addEventListener('click', startNewAuction);
-
+        elements.logoutBtn.addEventListener('click', logout);
     </script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans p-4 flex flex-col items-center justify-center min-h-screen">
@@ -369,6 +353,7 @@ async function saveParticipantName() {
             <h4 class="text-lg font-bold text-gray-700">Partecipanti</h4>
             <ul id="participants-list" class="mt-4 space-y-2 text-left"></ul>
         </div>
+        <button id="logout-btn" class="w-full mt-4 bg-gray-400 text-white p-3 rounded-lg font-semibold hover:bg-gray-500 transition-colors duration-200">Esci</button>
     </div>
     
     <div id="modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
@@ -382,5 +367,3 @@ async function saveParticipantName() {
 
 </body>
 </html>
-
-
