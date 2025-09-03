@@ -12,9 +12,30 @@
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         setLogLevel('debug'); // Imposta il livello di log per vedere i messaggi di debug di Firestore
 
-        // Global variables provided by the environment
+        // Variabili globali fornite dall'ambiente Canvas.
+        // Se hosti l'app su un sito esterno, come GitHub Pages,
+        // devi inserire qui la tua configurazione Firebase.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        
+        // --- IMPORTANTE: INCOLLA QUI LA TUA CONFIGURAZIONE DI FIREBASE ---
+        // Vai nella console di Firebase, seleziona il tuo progetto, clicca sull'icona della web app,
+        // e copia l'oggetto 'firebaseConfig'. Sarà un codice simile a questo:
+        // {
+        //   apiKey: "...",
+        //   authDomain: "...",
+        //   ...
+        // };
+        // Incolla l'intero oggetto qui sotto al posto delle graffe vuote.
+        const firebaseConfig = {
+              apiKey: "AIzaSyCFFkUbEhY6Rn515DbRbLsa5lqQDu1R5Jc",
+              authDomain: "app-asta-fanta-lattuzo.firebaseapp.com",
+              projectId: "app-asta-fanta-lattuzo",
+              storageBucket: "app-asta-fanta-lattuzo.firebasestorage.app",
+              messagingSenderId: "925081312945",
+              appId: "1:925081312945:web:a09df8e2bfd62676a18c90",
+              measurementId: "G-0BZPZQ4JE2"
+        };
+        
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         let db, auth;
@@ -30,19 +51,18 @@
                     const app = initializeApp(firebaseConfig);
                     db = getFirestore(app);
                     auth = getAuth(app);
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                    // Accedi sempre in modo anonimo per evitare errori con il custom token
+                    await signInAnonymously(auth);
                     userId = auth.currentUser.uid;
                     console.log("Firebase initialized. User ID:", userId);
                     setupListeners();
                 } else {
-                    console.error("Firebase config not found.");
+                    console.error("Configurazione Firebase non trovata. Inserisci le tue credenziali.");
+                    showModal("Errore di connessione: Incolla le tue credenziali di Firebase (apiKey, authDomain, etc.) nel codice per far funzionare l'app.");
                 }
             } catch (error) {
-                console.error("Error initializing Firebase:", error);
+                console.error("Errore durante l'inizializzazione di Firebase:", error);
+                showModal("Errore durante l'inizializzazione di Firebase. Controlla la tua configurazione.");
             }
         }
 
