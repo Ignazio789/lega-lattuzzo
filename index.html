@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, collection, query, where, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         setLogLevel('debug');
@@ -23,13 +23,12 @@
             measurementId: "G-0BZPZQ4JE2"
         };
         
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
         let db, auth;
         let userId;
         const AUCTION_STATE_DOC_ID = "auction_state";
-        const AUCTION_COLLECTION_ID = "auction_rounds"; 
-        const PARTICIPANTS_COLLECTION_ID = "participants"; 
+        const AUCTION_COLLECTION_ID = "auction_rounds";
+        const PARTICIPANTS_COLLECTION_ID = "participants";
+        const ADMIN_USER_ID = "metti_qui_l'id_del_tuo_admin"; // <-- CAMBIA QUESTO ID
 
         async function initializeFirebase() {
             try {
@@ -37,11 +36,7 @@
                     const app = initializeApp(firebaseConfig);
                     db = getFirestore(app);
                     auth = getAuth(app);
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                    await signInAnonymously(auth);
                     userId = auth.currentUser.uid;
                     console.log("Firebase initialized. User ID:", userId);
                     setupListeners();
@@ -88,7 +83,8 @@
             waitingMessage: document.getElementById('waiting-message'),
             startNewAuctionBtn: document.getElementById('start-new-auction-btn'),
             participantsList: document.getElementById('participants-list'),
-            logoutBtn: document.getElementById('logout-btn')
+            logoutBtn: document.getElementById('logout-btn'),
+            adminButtonContainer: document.getElementById('admin-button-container') // Nuovo elemento
         };
 
         function render() {
@@ -98,6 +94,8 @@
             elements.biddingStatus.classList.add('hidden');
             elements.waitingMessage.classList.add('hidden');
             elements.bidForm.classList.add('hidden');
+            elements.adminButtonContainer.classList.add('hidden'); // Nasconde sempre il bottone admin
+            elements.startNewAuctionBtn.classList.add('hidden'); // Nasconde il bottone "Avvia Nuova Asta"
 
             elements.participantsList.innerHTML = '';
             appState.allParticipants.forEach(p => {
@@ -125,6 +123,10 @@
                         elements.resultsScreen.classList.remove('hidden');
                         elements.winningBidDisplay.textContent = appState.winningBid !== null ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
                         elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
+                        
+                        if (userId === ADMIN_USER_ID) {
+                            elements.startNewAuctionBtn.classList.remove('hidden');
+                        }
                     } else if (appState.hasSubmittedBid) {
                         elements.waitingMessage.classList.remove('hidden');
                     } else {
@@ -139,10 +141,10 @@
         async function saveParticipantName() {
             const name = elements.nameInput.value.trim();
             if (name) {
-                const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
                 const initialCredits = 300;
-                await setDoc(doc(db, 'artifacts', firebaseConfig.appId, 'users', userId, 'profile', 'data'), { name: name, credits: initialCredits });
-                await setDoc(publicParticipantRef, { name: name, userId: userId });
+                // Salva i dati nella collezione pubblica
+                const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
+                await setDoc(participantRef, { name: name, credits: initialCredits, userId: userId });
 
                 const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
                 const auctionSnap = await getDoc(auctionRef);
@@ -153,7 +155,7 @@
                         winningParticipant: null
                     });
                 }
-
+                
                 appState.participantName = name;
                 appState.participantCredits = initialCredits;
                 appState.currentScreen = 'main';
@@ -197,45 +199,49 @@
         }
 
         async function startNewAuction() {
+            // Logica di calcolo del vincitore gestita solo dall'admin
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+            const auctionSnap = await getDoc(auctionRef);
+            if (auctionSnap.exists()) {
+                const bids = auctionSnap.data().bids || [];
+                let winningBid = 0;
+                let winningParticipantId = null;
+                let winningParticipantName = null;
+
+                bids.forEach(bid => {
+                    if (bid.amount > winningBid) {
+                        winningBid = bid.amount;
+                        winningParticipantId = bid.userId;
+                        winningParticipantName = bid.name;
+                    }
+                });
+
+                if (winningParticipantId) {
+                    const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, winningParticipantId);
+                    const winnerSnap = await getDoc(winnerRef);
+                    if (winnerSnap.exists()) {
+                        const currentCredits = winnerSnap.data().credits;
+                        const newCredits = currentCredits - winningBid;
+                        await updateDoc(winnerRef, { credits: newCredits });
+                    }
+                }
+            }
+
+            // Reset dello stato per la nuova asta
             await setDoc(auctionRef, {
                 bids: [],
                 winningBid: null,
                 winningParticipant: null
             });
+
             appState.hasSubmittedBid = false;
             elements.bidAmountInput.value = '';
             render();
         }
 
-        async function calculateAndSaveWinner(bids) {
-            let winningBid = 0;
-            let winningParticipantId = null;
-            let winningParticipantName = null;
-
-            bids.forEach(bid => {
-                if (bid.amount > winningBid) {
-                    winningBid = bid.amount;
-                    winningParticipantId = bid.userId;
-                    winningParticipantName = bid.name;
-                }
-            });
-
-            if (winningParticipantId) {
-                const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'users', winningParticipantId, 'profile', 'data');
-                const winnerSnap = await getDoc(winnerRef);
-                if (winnerSnap.exists()) {
-                    const currentCredits = winnerSnap.data().credits;
-                    const newCredits = currentCredits - winningBid;
-                    await updateDoc(winnerRef, { credits: newCredits });
-                }
-            }
-
-            return { winningBid, winningParticipantName };
-        }
-
+        // Modifica del listener per i partecipanti
         function setupListeners() {
-            const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'users', userId, 'profile', 'data');
+            const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
             onSnapshot(participantRef, (docSnap) => {
                 if (docSnap.exists() && docSnap.data().name) {
                     appState.participantName = docSnap.data().name;
@@ -251,18 +257,24 @@
             });
         }
 
+        // Modifica del listener per lo stato dell'asta
         function setupAuctionStateListener() {
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
-            onSnapshot(auctionRef, async (docSnap) => {
+            onSnapshot(auctionRef, (docSnap) => {
                 const data = docSnap.data();
                 if (data) {
                     appState.bids = data.bids || [];
+                    appState.winningBid = data.winningBid;
+                    appState.winningParticipant = data.winningParticipant;
+                    
                     if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
-                        const { winningBid, winningParticipantName } = await calculateAndSaveWinner(appState.bids);
-                        appState.winningBid = winningBid;
-                        appState.winningParticipant = winningParticipantName;
+                        // Se l'asta è finita, resetta lo stato di bid
                         appState.hasSubmittedBid = false;
                         elements.bidAmountInput.value = '';
+                    } else {
+                        // Se un nuovo giro è iniziato, resetta i dati del vincitore
+                        appState.winningBid = null;
+                        appState.winningParticipant = null;
                     }
                     render();
                 }
@@ -301,7 +313,7 @@
             
             // Reinizializza lo stato dell'app
             appState.currentScreen = 'auth';
-            render();
+            location.reload(); // Ricarica la pagina per resettare completamente lo stato
         }
         
         window.onload = async () => {
@@ -353,7 +365,9 @@
             <h3 class="text-xl font-semibold text-gray-700">Risultato Asta</h3>
             <p id="winning-participant-display" class="text-2xl font-bold text-green-600 mt-2"></p>
             <p id="winning-bid-display" class="text-xl text-gray-800 mt-1"></p>
-            <button id="start-new-auction-btn" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200">Avvia Nuova Asta</button>
+            <div id="admin-button-container">
+                <button id="start-new-auction-btn" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200">Avvia Nuova Asta</button>
+            </div>
         </div>
 
         <div class="mt-8 pt-4 border-t-2 border-gray-200">
