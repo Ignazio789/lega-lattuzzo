@@ -8,7 +8,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, collection, query, where, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         setLogLevel('debug');
 
@@ -55,7 +55,6 @@
             }
         }
 
-        // Functions for managing app state
         const appState = {
             currentScreen: 'auth',
             participantName: '',
@@ -291,8 +290,16 @@
             closeModalBtn.onclick = () => modal.classList.add('hidden');
         }
 
+        // *** LA MODIFICA È QUI ***
         async function logout() {
+            // Elimina il documento del partecipante dalla lista pubblica
+            const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
+            await deleteDoc(publicParticipantRef);
+            
+            // Disconnette l'utente
             await signOut(auth);
+            
+            // Reinizializza lo stato dell'app
             appState.currentScreen = 'auth';
             render();
         }
