@@ -15,9 +15,9 @@
         // --- IMPORTANTE: INCOLLA QUI LA TUA CONFIGURAZIONE DI FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyCFFkUbEhY6Rn515DbRbLsa5lqQDu1R5Jc",
-            authDomain: "app-asta-fanta-lattuzo.firebaseapp.com",
-            projectId: "app-asta-fanta-lattuzo",
-            storageBucket: "app-asta-fanta-lattuzo.firebasestorage.app",
+            authDomain: "app-asta-fanta-lattuzzo.firebaseapp.com",
+            projectId: "app-asta-fanta-lattuzzo",
+            storageBucket: "app-asta-fanta-lattuzzo.firebasestorage.app",
             messagingSenderId: "925081312945",
             appId: "1:925081312945:web:a09df8e2bfd62676a18c90",
             measurementId: "G-0BZPZQ4JE2"
@@ -116,6 +116,12 @@
                     elements.authScreen.classList.remove('hidden');
                     break;
                 case 'main':
+                    elements.mainScreen.classList.remove('hidden');
+                    elements.displayName.textContent = `Ciao, ${appState.participantName}!`;
+                    elements.displayUserId.textContent = `Il tuo ID: ${userId}`;
+                    elements.myCreditsDisplay.textContent = `Crediti rimanenti: €${appState.participantCredits}`;
+                    elements.currentPlayerDisplay.textContent = `Giocatore all'asta: ${appState.currentPlayer}`;
+
                     if (appState.winningBid !== null) {
                         elements.resultsScreen.classList.remove('hidden');
                         elements.winningBidDisplay.textContent = `Offerta: €${appState.winningBid}`;
@@ -125,20 +131,17 @@
                             elements.startNewAuctionBtn.classList.remove('hidden');
                         }
                     } else {
-                        elements.mainScreen.classList.remove('hidden');
-                        elements.displayName.textContent = `Ciao, ${appState.participantName}!`;
-                        elements.displayUserId.textContent = `Il tuo ID: ${userId}`;
-                        elements.myCreditsDisplay.textContent = `Crediti rimanenti: €${appState.participantCredits}`;
-                        elements.currentPlayerDisplay.textContent = `Giocatore all'asta: ${appState.currentPlayer}`;
-
                         if (appState.hasSubmittedBid) {
                             elements.waitingMessage.classList.remove('hidden');
-                            elements.changeBidBtn.classList.remove('hidden');
                         } else {
                             elements.bidForm.classList.remove('hidden');
-                            elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
-                            elements.biddingStatus.classList.remove('hidden');
                         }
+                        elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
+                        elements.biddingStatus.classList.remove('hidden');
+                    }
+                    
+                    if (appState.hasSubmittedBid) {
+                        elements.changeBidBtn.classList.remove('hidden');
                     }
                     break;
             }
@@ -386,7 +389,6 @@
                     <button type="submit" id="submit-bid-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600 transition-colors duration-200">Offro</button>
                 </div>
             </form>
-            <button id="change-bid-btn" class="w-full mt-4 bg-yellow-500 text-white p-3 rounded-lg font-semibold hover:bg-yellow-600 transition-colors duration-200 hidden">Cambia Offerta</button>
         </div>
         
         <div id="results-screen" class="hidden my-6">
@@ -397,6 +399,7 @@
                 <button id="start-new-auction-btn" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200">Avvia Nuova Asta</button>
             </div>
         </div>
+        <button id="change-bid-btn" class="w-full mt-4 bg-yellow-500 text-white p-3 rounded-lg font-semibold hover:bg-yellow-600 transition-colors duration-200 hidden">Cambia Offerta</button>
 
         <div class="mt-8 pt-4 border-t-2 border-gray-200">
             <h4 class="text-lg font-bold text-gray-700">Partecipanti</h4>
