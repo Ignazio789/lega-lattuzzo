@@ -215,6 +215,7 @@
                 const bids = auctionSnap.data().bids || [];
                 let maxBid = 0;
 
+                // Trova l'offerta più alta
                 bids.forEach(bid => {
                     if (bid.amount > maxBid) {
                         maxBid = bid.amount;
@@ -222,7 +223,8 @@
                     }
                 });
 
-                if (winningParticipantId) {
+                // Se c'è un'offerta vincente (maggiore di 0)
+                if (winningParticipantId && maxBid > 0) {
                     const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, winningParticipantId);
                     const winnerSnap = await getDoc(winnerRef);
                     if (winnerSnap.exists()) {
@@ -235,11 +237,13 @@
                 }
             }
             
+            // Aggiorna lo stato dell'asta con i risultati finali
             await updateDoc(auctionRef, {
                 winningBid: winningBid,
                 winningParticipant: winningParticipantName
             });
 
+            // Resetta l'asta dopo 5 secondi
             setTimeout(async () => {
                 await setDoc(auctionRef, {
                     bids: [],
