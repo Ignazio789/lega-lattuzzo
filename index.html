@@ -39,7 +39,13 @@
                     await signInAnonymously(auth);
                     userId = auth.currentUser.uid;
                     console.log("Firebase initialized. User ID:", userId);
-                    setupListeners();
+                    
+                    // --- Inizializzazione Listener indipendenti ---
+                    setupUserListener();
+                    setupAuctionStateListener();
+                    setupParticipantsListener();
+                    // --- Fine Inizializzazione ---
+
                 } else {
                     console.error("Configurazione Firebase non trovata. Inserisci le tue credenziali.");
                     showModal("Errore di connessione: Incolla le tue credenziali di Firebase (apiKey, authDomain, etc.) nel codice per far funzionare l'app.");
@@ -140,13 +146,9 @@
                         elements.biddingStatus.classList.remove('hidden');
                     }
                     
-                    // --- QUESTA È LA MODIFICA CHIAVE ---
-                    // Il pulsante viene visualizzato qui, fuori dai blocchi if/else
-                    // in modo da essere sempre visibile quando la schermata principale è attiva.
                     if (appState.hasSubmittedBid) {
                         elements.changeBidBtn.classList.remove('hidden');
                     }
-                    // --- FINE MODIFICA ---
                     break;
             }
         }
@@ -284,7 +286,8 @@
             }, 5000);
         }
 
-        function setupListeners() {
+        // Listener per i dati dell'utente corrente
+        function setupUserListener() {
             const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
             onSnapshot(participantRef, (docSnap) => {
                 if (docSnap.exists() && docSnap.data().name) {
@@ -292,8 +295,6 @@
                     appState.participantCredits = docSnap.data().credits || 0;
                     appState.isAdmin = docSnap.data().isAdmin || false;
                     appState.currentScreen = 'main';
-                    setupAuctionStateListener();
-                    setupParticipantsListener();
                     render();
                 } else {
                     appState.currentScreen = 'auth';
@@ -301,7 +302,8 @@
                 }
             });
         }
-
+        
+        // Listener per lo stato dell'asta in tempo reale
         function setupAuctionStateListener() {
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
             onSnapshot(auctionRef, (docSnap) => {
@@ -319,10 +321,12 @@
                 }
             });
         }
-
+        
+        // Listener per la lista di tutti i partecipanti
         function setupParticipantsListener() {
             const participantsCollection = collection(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID);
             onSnapshot(participantsCollection, (querySnapshot) => {
+                console.log("Listener partecipanti attivato. Numero di partecipanti:", querySnapshot.docs.length);
                 appState.allParticipants = [];
                 querySnapshot.forEach(doc => {
                     appState.allParticipants.push(doc.data());
