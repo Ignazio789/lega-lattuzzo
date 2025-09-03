@@ -274,6 +274,7 @@
                     winningBid: null,
                     winningParticipant: null
                 });
+                // L'offerta dell'utente viene resettata qui, quando l'admin avvia la nuova asta
                 appState.hasSubmittedBid = false;
                 elements.bidAmountInput.value = '';
                 render();
@@ -308,7 +309,8 @@
                     appState.winningParticipant = data.winningParticipant;
                     
                     if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
-                        appState.hasSubmittedBid = false;
+                        // Rimuovi la riga che reimposta appState.hasSubmittedBid
+                        // appState.hasSubmittedBid = false; 
                         elements.bidAmountInput.value = '';
                     } else {
                         appState.winningBid = null;
