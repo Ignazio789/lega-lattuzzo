@@ -140,9 +140,13 @@
                         elements.biddingStatus.classList.remove('hidden');
                     }
                     
+                    // --- QUESTA È LA MODIFICA CHIAVE ---
+                    // Il pulsante viene visualizzato qui, fuori dai blocchi if/else
+                    // in modo da essere sempre visibile quando la schermata principale è attiva.
                     if (appState.hasSubmittedBid) {
                         elements.changeBidBtn.classList.remove('hidden');
                     }
+                    // --- FINE MODIFICA ---
                     break;
             }
         }
