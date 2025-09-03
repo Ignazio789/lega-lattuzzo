@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -87,7 +86,8 @@
             startNewAuctionBtn: document.getElementById('start-new-auction-btn'),
             participantsList: document.getElementById('participants-list'),
             logoutBtn: document.getElementById('logout-btn'),
-            adminButtonContainer: document.getElementById('admin-button-container')
+            adminButtonContainer: document.getElementById('admin-button-container'),
+            changeBidBtn: document.getElementById('change-bid-btn')
         };
 
         function render() {
@@ -98,6 +98,7 @@
             elements.waitingMessage.classList.add('hidden');
             elements.bidForm.classList.add('hidden');
             elements.startNewAuctionBtn.classList.add('hidden');
+            elements.changeBidBtn.classList.add('hidden');
 
             elements.participantsList.innerHTML = '';
             appState.allParticipants.forEach(p => {
@@ -131,6 +132,7 @@
                         }
                     } else if (appState.hasSubmittedBid) {
                         elements.waitingMessage.classList.remove('hidden');
+                        elements.changeBidBtn.classList.remove('hidden');
                     } else {
                         elements.bidForm.classList.remove('hidden');
                         elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
@@ -203,6 +205,26 @@
                 bids: [...(appState.bids || []), { userId: userId, name: appState.participantName, amount: 0, timestamp: new Date() }]
             });
         }
+        
+        async function changeBid() {
+            try {
+                const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+                const auctionSnap = await getDoc(auctionRef);
+                if (auctionSnap.exists()) {
+                    const currentBids = auctionSnap.data().bids || [];
+                    const updatedBids = currentBids.filter(bid => bid.userId !== userId);
+                    await updateDoc(auctionRef, { bids: updatedBids });
+                }
+
+                appState.hasSubmittedBid = false;
+                elements.bidAmountInput.value = '';
+                render();
+
+            } catch (error) {
+                console.error("Errore durante il cambio dell'offerta:", error);
+                showModal("Errore durante il cambio dell'offerta. Riprova.");
+            }
+        }
 
         async function startNewAuction() {
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
@@ -215,8 +237,7 @@
             if (auctionSnap.exists()) {
                 const bids = auctionSnap.data().bids || [];
                 let maxBid = 0;
-
-                // Trova l'offerta più alta
+                
                 bids.forEach(bid => {
                     if (bid.amount > maxBid) {
                         maxBid = bid.amount;
@@ -224,7 +245,6 @@
                     }
                 });
 
-                // Se c'è un'offerta vincente (maggiore di 0)
                 if (winningParticipantId && maxBid > 0) {
                     const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, winningParticipantId);
                     const winnerSnap = await getDoc(winnerRef);
@@ -238,13 +258,11 @@
                 }
             }
             
-            // Aggiorna lo stato dell'asta con i risultati finali
             await updateDoc(auctionRef, {
                 winningBid: winningBid,
                 winningParticipant: winningParticipantName
             });
 
-            // Resetta l'asta dopo 5 secondi
             setTimeout(async () => {
                 await setDoc(auctionRef, {
                     bids: [],
@@ -332,6 +350,7 @@
         elements.passBidBtn.addEventListener('click', passBid);
         elements.startNewAuctionBtn.addEventListener('click', startNewAuction);
         elements.logoutBtn.addEventListener('click', logout);
+        elements.changeBidBtn.addEventListener('click', changeBid);
     </script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans p-4 flex flex-col items-center justify-center min-h-screen">
@@ -368,6 +387,7 @@
                     <button type="submit" id="submit-bid-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600 transition-colors duration-200">Offro</button>
                 </div>
             </form>
+            <button id="change-bid-btn" class="w-full mt-4 bg-yellow-500 text-white p-3 rounded-lg font-semibold hover:bg-yellow-600 transition-colors duration-200 hidden">Cambia Offerta</button>
         </div>
         
         <div id="results-screen" class="hidden my-6">
@@ -397,4 +417,3 @@
 
 </body>
 </html>
-
