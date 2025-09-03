@@ -132,12 +132,17 @@
                         }
                     } else if (appState.hasSubmittedBid) {
                         elements.waitingMessage.classList.remove('hidden');
-                        elements.changeBidBtn.classList.remove('hidden');
                     } else {
                         elements.bidForm.classList.remove('hidden');
                         elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
                         elements.biddingStatus.classList.remove('hidden');
                     }
+                    
+                    // Mostra il pulsante "Cambia Offerta" se l'utente ha già offerto
+                    if (appState.hasSubmittedBid) {
+                         elements.changeBidBtn.classList.remove('hidden');
+                    }
+                    
                     break;
             }
         }
