@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -138,7 +139,6 @@
                         elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
                         elements.biddingStatus.classList.remove('hidden');
                     }
-                    
                     break;
             }
         }
@@ -228,9 +228,6 @@
         }
 
         async function startNewAuction() {
-            // Disabilita il pulsante "Avvia Nuova Asta"
-            elements.startNewAuctionBtn.disabled = true;
-
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
             const auctionSnap = await getDoc(auctionRef);
             
@@ -242,14 +239,23 @@
                 const bids = auctionSnap.data().bids || [];
                 let maxBid = 0;
                 
-                // Trova l'offerta vincente, escludendo le offerte "pass" (amount 0)
-                const validBids = bids.filter(bid => bid.amount > 0);
+                bids.forEach(bid => {
+                    if (bid.amount > maxBid) {
+                        maxBid = bid.amount;
+                        winningParticipantId = bid.userId;
+                    }
+                });
 
-                if (validBids.length > 0) {
-                    const winningBidObj = validBids.reduce((max, bid) => max.amount > bid.amount ? max : bid);
-                    winningBid = winningBidObj.amount;
-                    winningParticipantId = winningBidObj.userId;
-                    winningParticipantName = winningBidObj.name;
+                if (winningParticipantId && maxBid > 0) {
+                    const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, winningParticipantId);
+                    const winnerSnap = await getDoc(winnerRef);
+                    if (winnerSnap.exists()) {
+                        const currentCredits = winnerSnap.data().credits;
+                        const newCredits = currentCredits - maxBid;
+                        await updateDoc(winnerRef, { credits: newCredits });
+                        winningParticipantName = winnerSnap.data().name;
+                        winningBid = maxBid;
+                    }
                 }
             }
             
@@ -259,12 +265,14 @@
             });
 
             setTimeout(async () => {
-                // L'admin resetta lo stato dell'asta su Firebase.
                 await setDoc(auctionRef, {
                     bids: [],
                     winningBid: null,
                     winningParticipant: null
                 });
+                appState.hasSubmittedBid = false;
+                elements.bidAmountInput.value = '';
+                render();
             }, 5000);
         }
 
@@ -295,12 +303,13 @@
                     appState.winningBid = data.winningBid;
                     appState.winningParticipant = data.winningParticipant;
                     
-                    // Controlla se l'asta è stata resettata dall'admin
-                    if (data.winningBid === null && data.bids.length === 0) {
+                    if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
                         appState.hasSubmittedBid = false;
                         elements.bidAmountInput.value = '';
+                    } else {
+                        appState.winningBid = null;
+                        appState.winningParticipant = null;
                     }
-
                     render();
                 }
             });
