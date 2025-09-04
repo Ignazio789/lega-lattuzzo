@@ -15,9 +15,9 @@
         // --- IMPORTANTE: INCOLLA QUI LA TUA CONFIGURAZIONE DI FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyCFFkUbEhY6Rn515DbRbLsa5lqQDu1R5Jc",
-            authDomain: "app-asta-fanta-lattuzo.firebaseapp.com",
+            authDomain: "app-asta-fanta-lattuzzo.firebaseapp.com",
             projectId: "app-asta-fanta-lattuzzo",
-            storageBucket: "app-asta-fanta-lattuzo.firebasestorage.app",
+            storageBucket: "app-asta-fanta-lattuzzo.firebasestorage.app",
             messagingSenderId: "925081312945",
             appId: "1:925081312945:web:a09df8e2bfd62676a18c90",
             measurementId: "G-0BZPZQ4JE2"
@@ -124,30 +124,32 @@
                     elements.myCreditsDisplay.textContent = `Crediti rimanenti: €${appState.participantCredits}`;
                     elements.currentPlayerDisplay.textContent = `Giocatore all'asta: ${appState.currentPlayer}`;
                     
-                    if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
+                    const allBidsSubmitted = appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0;
+
+                    if (allBidsSubmitted) {
                         elements.resultsScreen.classList.remove('hidden');
                         elements.winningBidDisplay.textContent = appState.winningBid !== null ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
                         elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
                         
-                        // L'admin vede il pulsante "Avvia Nuova Asta" nella schermata dei risultati
+                        // Solo l'admin vede questo pulsante dopo che tutti hanno offerto
                         if (appState.isAdmin) {
-                            elements.adminButtonContainer.classList.remove('hidden');
                             elements.startNewAuctionBtn.classList.remove('hidden');
                             elements.startNewAuctionBtn.disabled = appState.isAuctionResetting;
-                            elements.changeBidBtn.classList.remove('hidden');
-                            elements.changeBidBtn.disabled = appState.isAuctionResetting;
-                            elements.changeBidBtn.textContent = appState.isAuctionResetting ? 'Attendere...' : 'Cambia Offerta';
                         }
                     } else if (appState.hasSubmittedBid) {
                         elements.waitingMessage.classList.remove('hidden');
-                        elements.changeBidBtn.classList.remove('hidden');
-                        elements.changeBidBtn.disabled = appState.isAuctionResetting;
-                        elements.changeBidBtn.textContent = appState.isAuctionResetting ? 'Attendere...' : 'Cambia Offerta';
                     } else {
                         elements.bidForm.classList.remove('hidden');
                         elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
                         elements.biddingStatus.classList.remove('hidden');
                     }
+                    
+                    if (appState.hasSubmittedBid || appState.isAdmin) {
+                        elements.changeBidBtn.classList.remove('hidden');
+                        elements.changeBidBtn.disabled = appState.isAuctionResetting;
+                        elements.changeBidBtn.textContent = appState.isAuctionResetting ? 'Attendere...' : 'Cambia Offerta';
+                    }
+                    
                     break;
             }
         }
@@ -408,9 +410,10 @@
             <h3 class="text-xl font-semibold text-gray-700">Risultato Asta</h3>
             <p id="winning-participant-display" class="text-2xl font-bold text-green-600 mt-2"></p>
             <p id="winning-bid-display" class="text-xl text-gray-800 mt-1"></p>
-            <div id="admin-button-container">
-                <button id="start-new-auction-btn" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 hidden">Avvia Nuova Asta</button>
-            </div>
+        </div>
+        
+        <div id="admin-button-container" class="mt-4">
+            <button id="start-new-auction-btn" class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 hidden">Avvia Nuova Asta</button>
         </div>
 
         <div class="mt-8 pt-4 border-t-2 border-gray-200">
