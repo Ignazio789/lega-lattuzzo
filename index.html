@@ -1,441 +1,445 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asta Fanta App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, collection, query, where, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        setLogLevel('debug');
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asta Fanta App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, collection, query, where, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        setLogLevel('debug');
 
-        // --- IMPORTANTE: INCOLLA QUI LA TUA CONFIGURAZIONE DI FIREBASE ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyCFFkUbEhY6Rn515DbRbLsa5lqQDu1R5Jc",
-            authDomain: "app-asta-fanta-lattuzo.firebaseapp.com",
-            projectId: "app-asta-fanta-lattuzo",
-            storageBucket: "app-asta-fanta-lattuzo.firebasestorage.app",
-            messagingSenderId: "925081312945",
-            appId: "1:925081312945:web:a09df8e2bfd62676a18c90",
-            measurementId: "G-0BZPZQ4JE2"
-        };
-        
-        let db, auth;
-        let userId;
-        const AUCTION_STATE_DOC_ID = "auction_state";
-        const AUCTION_COLLECTION_ID = "auction_rounds";
-        const PARTICIPANTS_COLLECTION_ID = "participants";
-        const ADMIN_SECRET_CODE = "lattuzzo2025";
+        // --- IMPORTANTE: INCOLLA QUI LA TUA CONFIGURAZIONE DI FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCFFkUbEhY6Rn515DbRbLsa5lqQDu1R5Jc",
+            authDomain: "app-asta-fanta-lattuzzo.firebaseapp.com",
+            projectId: "app-asta-fanta-lattuzzo",
+            storageBucket: "app-asta-fanta-lattuzzo.firebasestorage.app",
+            messagingSenderId: "925081312945",
+            appId: "1:925081312945:web:a09df8e2bfd62676a18c90",
+            measurementId: "G-0BZPZQ4JE2"
+        };
+        
+        let db, auth;
+        let userId;
+        const AUCTION_STATE_DOC_ID = "auction_state";
+        const AUCTION_COLLECTION_ID = "auction_rounds";
+        const PARTICIPANTS_COLLECTION_ID = "participants";
+        const ADMIN_SECRET_CODE = "lattuzzo2025";
 
-        async function initializeFirebase() {
-            try {
-                if (Object.keys(firebaseConfig).length > 0) {
-                    const app = initializeApp(firebaseConfig);
-                    db = getFirestore(app);
-                    auth = getAuth(app);
-                    await signInAnonymously(auth);
-                    userId = auth.currentUser.uid;
-                    console.log("Firebase initialized. User ID:", userId);
-                    setupListeners();
-                } else {
-                    console.error("Configurazione Firebase non trovata. Inserisci le tue credenziali.");
-                    showModal("Errore di connessione: Incolla le tue credenziali di Firebase (apiKey, authDomain, etc.) nel codice per far funzionare l'app.");
-                }
-            } catch (error) {
-                console.error("Errore durante l'inizializzazione di Firebase:", error);
-                showModal("Errore durante l'inizializzazione di Firebase. Controlla la tua configurazione e le regole di sicurezza.");
-            }
-        }
+        async function initializeFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length > 0) {
+                    const app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    await signInAnonymously(auth);
+                    userId = auth.currentUser.uid;
+                    console.log("Firebase initialized. User ID:", userId);
+                    setupListeners();
+                } else {
+                    console.error("Configurazione Firebase non trovata. Inserisci le tue credenziali.");
+                    showModal("Errore di connessione: Incolla le tue credenziali di Firebase (apiKey, authDomain, etc.) nel codice per far funzionare l'app.");
+                }
+            } catch (error) {
+                console.error("Errore durante l'inizializzazione di Firebase:", error);
+                showModal("Errore durante l'inizializzazione di Firebase. Controlla la tua configurazione e le regole di sicurezza.");
+            }
+        }
 
-        const appState = {
-            currentScreen: 'auth',
-            participantName: '',
-            participantCredits: 0,
-            currentPlayer: 'Giocatore 1',
-            bids: [],
-            totalParticipants: 0,
-            hasSubmittedBid: false,
-            winningBid: null,
-            winningParticipant: null,
-            allParticipants: [],
-            isAdmin: false,
-            isAuctionResetting: false
-        };
+        const appState = {
+            currentScreen: 'auth',
+            participantName: '',
+            participantCredits: 0,
+            currentPlayer: 'Giocatore 1',
+            bids: [],
+            totalParticipants: 0,
+            hasSubmittedBid: false,
+            winningBid: null,
+            winningParticipant: null,
+            allParticipants: [],
+            isAdmin: false,
+            isAuctionResetting: false
+        };
 
-        const elements = {
-            authScreen: document.getElementById('auth-screen'),
-            mainScreen: document.getElementById('main-screen'),
-            nameInput: document.getElementById('name-input'),
-            adminCodeInput: document.getElementById('admin-code-input'),
-            saveNameBtn: document.getElementById('save-name-btn'),
-            displayName: document.getElementById('display-name'),
-            displayUserId: document.getElementById('display-user-id'),
-            myCreditsDisplay: document.getElementById('my-credits-display'),
-            currentPlayerDisplay: document.getElementById('current-player-display'),
-            bidForm: document.getElementById('bid-form'),
-            bidAmountInput: document.getElementById('bid-amount-input'),
-            passBidBtn: document.getElementById('pass-bid-btn'),
-            submitBidBtn: document.getElementById('submit-bid-btn'),
-            biddingStatus: document.getElementById('bidding-status'),
-            resultsScreen: document.getElementById('results-screen'),
-            winningBidDisplay: document.getElementById('winning-bid-display'),
-            winningParticipantDisplay: document.getElementById('winning-participant-display'),
-            waitingMessage: document.getElementById('waiting-message'),
-            startNewAuctionBtn: document.getElementById('start-new-auction-btn'),
-            participantsList: document.getElementById('participants-list'),
-            logoutBtn: document.getElementById('logout-btn'),
-            adminButtonContainer: document.getElementById('admin-button-container'),
-            changeBidBtn: document.getElementById('change-bid-btn')
-        };
+        const elements = {
+            authScreen: document.getElementById('auth-screen'),
+            mainScreen: document.getElementById('main-screen'),
+            nameInput: document.getElementById('name-input'),
+            adminCodeInput: document.getElementById('admin-code-input'),
+            saveNameBtn: document.getElementById('save-name-btn'),
+            displayName: document.getElementById('display-name'),
+            displayUserId: document.getElementById('display-user-id'),
+            myCreditsDisplay: document.getElementById('my-credits-display'),
+            currentPlayerDisplay: document.getElementById('current-player-display'),
+            bidForm: document.getElementById('bid-form'),
+            bidAmountInput: document.getElementById('bid-amount-input'),
+            passBidBtn: document.getElementById('pass-bid-btn'),
+            submitBidBtn: document.getElementById('submit-bid-btn'),
+            biddingStatus: document.getElementById('bidding-status'),
+            resultsScreen: document.getElementById('results-screen'),
+            winningBidDisplay: document.getElementById('winning-bid-display'),
+            winningParticipantDisplay: document.getElementById('winning-participant-display'),
+            waitingMessage: document.getElementById('waiting-message'),
+            startNewAuctionBtn: document.getElementById('start-new-auction-btn'),
+            participantsList: document.getElementById('participants-list'),
+            logoutBtn: document.getElementById('logout-btn'),
+            adminButtonContainer: document.getElementById('admin-button-container'),
+            changeBidBtn: document.getElementById('change-bid-btn')
+        };
 
-        function render() {
-            elements.authScreen.classList.add('hidden');
-            elements.mainScreen.classList.add('hidden');
-            elements.resultsScreen.classList.add('hidden');
-            elements.biddingStatus.classList.add('hidden');
-            elements.waitingMessage.classList.add('hidden');
-            elements.bidForm.classList.add('hidden');
-            elements.startNewAuctionBtn.classList.add('hidden');
-            elements.changeBidBtn.classList.add('hidden');
-            elements.adminButtonContainer.classList.add('hidden');
+        function render() {
+            // Nascondi tutto prima di mostrare gli elementi corretti
+            elements.authScreen.classList.add('hidden');
+            elements.mainScreen.classList.add('hidden');
+            elements.resultsScreen.classList.add('hidden');
+            elements.bidForm.classList.add('hidden');
+            elements.waitingMessage.classList.add('hidden');
+            elements.changeBidBtn.classList.add('hidden');
+            elements.startNewAuctionBtn.classList.add('hidden');
+            elements.adminButtonContainer.classList.add('hidden');
+            elements.biddingStatus.classList.add('hidden');
 
-            elements.participantsList.innerHTML = '';
-            appState.allParticipants.forEach(p => {
-                const li = document.createElement('li');
-                li.className = 'py-2 px-4 rounded-lg';
-                if (p.userId === userId) {
-                    li.className += ' bg-indigo-100 text-indigo-800 font-semibold';
-                }
-                li.textContent = `${p.name}`;
-                elements.participantsList.appendChild(li);
-            });
+            elements.participantsList.innerHTML = '';
+            appState.allParticipants.forEach(p => {
+                const li = document.createElement('li');
+                li.className = 'py-2 px-4 rounded-lg';
+                if (p.userId === userId) {
+                    li.className += ' bg-indigo-100 text-indigo-800 font-semibold';
+                }
+                li.textContent = `${p.name}`;
+                elements.participantsList.appendChild(li);
+            });
 
-            switch (appState.currentScreen) {
-                case 'auth':
-                    elements.authScreen.classList.remove('hidden');
-                    break;
-                case 'main':
-                    elements.mainScreen.classList.remove('hidden');
-                    elements.displayName.textContent = `Ciao, ${appState.participantName}!`;
-                    elements.displayUserId.textContent = `Il tuo ID: ${userId}`;
-                    elements.myCreditsDisplay.textContent = `Crediti rimanenti: €${appState.participantCredits}`;
-                    elements.currentPlayerDisplay.textContent = `Giocatore all'asta: ${appState.currentPlayer}`;
-                    
-                    // Logica di visualizzazione basata sullo stato dell'asta e sul ruolo
-                    const allBidsSubmitted = appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0;
-                    
-                    if (allBidsSubmitted) {
-                        elements.resultsScreen.classList.remove('hidden');
-                        elements.winningBidDisplay.textContent = appState.winningBid !== null ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
-                        elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
-                        
-                        elements.changeBidBtn.classList.remove('hidden');
-                        elements.changeBidBtn.disabled = appState.isAuctionResetting;
-                        elements.changeBidBtn.textContent = appState.isAuctionResetting ? 'Attendere...' : 'Cambia Offerta';
-                        
-                        if (appState.isAdmin) {
-                            elements.startNewAuctionBtn.classList.remove('hidden');
-                            elements.startNewAuctionBtn.disabled = false;
-                        }
-                    } else if (appState.hasSubmittedBid && !appState.isAdmin) {
-                        elements.waitingMessage.classList.remove('hidden');
-                        elements.changeBidBtn.classList.remove('hidden');
-                        elements.changeBidBtn.disabled = false;
-                        elements.changeBidBtn.textContent = 'Cambia Offerta';
-                    } else if (appState.isAdmin) {
-                        // L'admin vede sempre il form di offerta, anche dopo aver offerto
-                        elements.bidForm.classList.remove('hidden');
-                        elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
-                        elements.biddingStatus.classList.remove('hidden');
-                        elements.changeBidBtn.classList.add('hidden');
-                    } else {
-                        // Logica di base per i partecipanti
-                        elements.bidForm.classList.remove('hidden');
-                        elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
-                        elements.biddingStatus.classList.remove('hidden');
-                    }
-                    break;
-            }
-        }
+            switch (appState.currentScreen) {
+                case 'auth':
+                    elements.authScreen.classList.remove('hidden');
+                    break;
+                case 'main':
+                    elements.mainScreen.classList.remove('hidden');
+                    elements.displayName.textContent = `Ciao, ${appState.participantName}!`;
+                    elements.displayUserId.textContent = `Il tuo ID: ${userId}`;
+                    elements.myCreditsDisplay.textContent = `Crediti rimanenti: €${appState.participantCredits}`;
+                    elements.currentPlayerDisplay.textContent = `Giocatore all'asta: ${appState.currentPlayer}`;
 
-        async function saveParticipantName() {
-            const name = elements.nameInput.value.trim();
-            const adminCode = elements.adminCodeInput.value.trim();
-            
-            if (name) {
-                const initialCredits = 300;
-                const isAdmin = adminCode === ADMIN_SECRET_CODE;
-                
-                const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
-                await setDoc(participantRef, { name: name, credits: initialCredits, userId: userId, isAdmin: isAdmin });
-                
-                const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
-                const auctionSnap = await getDoc(auctionRef);
-                if (!auctionSnap.exists()) {
-                    await setDoc(auctionRef, {
-                        bids: [],
-                        winningBid: null,
-                        winningParticipant: null
-                    });
-                }
-                
-                appState.participantName = name;
-                appState.participantCredits = initialCredits;
-                appState.isAdmin = isAdmin;
-                appState.currentScreen = 'main';
-                render();
-            } else {
-                showModal('Inserisci un nome valido.');
-            }
-        }
+                    const allBidsSubmitted = appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0;
+                    
+                    if (appState.winningBid !== null) {
+                        // L'admin ha calcolato il vincitore, mostra i risultati a tutti.
+                        elements.resultsScreen.classList.remove('hidden');
+                        elements.winningBidDisplay.textContent = appState.winningBid !== null ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
+                        elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
+                        
+                        // Il bottone per cambiare offerta rimane visibile anche per l'admin in questa fase
+                        if (appState.isAdmin) {
+                            elements.changeBidBtn.classList.remove('hidden');
+                        }
 
-        async function submitBid() {
-            const bidAmount = parseInt(elements.bidAmountInput.value, 10);
-            if (isNaN(bidAmount) || bidAmount <= 0) {
-                showModal('Inserisci un importo valido e maggiore di zero.');
-                return;
-            }
-            if (bidAmount > appState.participantCredits) {
-                showModal('Non hai crediti sufficienti per questa offerta.');
-                return;
-            }
-            
-            appState.hasSubmittedBid = true;
-            render();
-            
-            const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
-            
-            await updateDoc(auctionRef, {
-                bids: [...(appState.bids || []), { userId: userId, name: appState.participantName, amount: bidAmount, timestamp: new Date() }]
-            });
+                        // L'admin vede il bottone "Avvia Nuova Asta" anche dopo che tutti hanno offerto e anche dopo aver rivelato il vincitore
+                        if (appState.isAdmin) {
+                             elements.startNewAuctionBtn.classList.remove('hidden');
+                             elements.startNewAuctionBtn.disabled = appState.isAuctionResetting;
+                        }
 
-            elements.bidAmountInput.value = '';
-        }
+                    } else if (appState.hasSubmittedBid) {
+                        // Se l'utente ha offerto, mostra il messaggio di attesa
+                        elements.waitingMessage.classList.remove('hidden');
+                        elements.changeBidBtn.classList.remove('hidden');
+                    } else {
+                        // Mostra il form per fare l'offerta
+                        elements.bidForm.classList.remove('hidden');
+                        elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
+                        elements.biddingStatus.classList.remove('hidden');
+                    }
+                    
+                    // L'admin vede il pulsante per avviare la nuova asta non appena tutti hanno offerto, ma solo se i risultati non sono ancora stati mostrati.
+                    if (appState.isAdmin && allBidsSubmitted && appState.winningBid === null) {
+                        elements.startNewAuctionBtn.classList.remove('hidden');
+                        elements.startNewAuctionBtn.disabled = false;
+                    }
+                    
+                    break;
+            }
+        }
 
-        async function passBid() {
-            appState.hasSubmittedBid = true;
-            render();
-            const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+        async function saveParticipantName() {
+            const name = elements.nameInput.value.trim();
+            const adminCode = elements.adminCodeInput.value.trim();
+            
+            if (name) {
+                const initialCredits = 300;
+                const isAdmin = adminCode === ADMIN_SECRET_CODE;
+                
+                const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
+                await setDoc(participantRef, { name: name, credits: initialCredits, userId: userId, isAdmin: isAdmin });
+                
+                const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+                const auctionSnap = await getDoc(auctionRef);
+                if (!auctionSnap.exists()) {
+                    await setDoc(auctionRef, {
+                        bids: [],
+                        winningBid: null,
+                        winningParticipant: null
+                    });
+                }
+                
+                appState.participantName = name;
+                appState.participantCredits = initialCredits;
+                appState.isAdmin = isAdmin;
+                appState.currentScreen = 'main';
+                render();
+            } else {
+                showModal('Inserisci un nome valido.');
+            }
+        }
 
-            await updateDoc(auctionRef, {
-                bids: [...(appState.bids || []), { userId: userId, name: appState.participantName, amount: 0, timestamp: new Date() }]
-            });
-        }
-        
-        async function changeBid() {
-            try {
-                const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
-                const auctionSnap = await getDoc(auctionRef);
-                if (auctionSnap.exists()) {
-                    const currentBids = auctionSnap.data().bids || [];
-                    const updatedBids = currentBids.filter(bid => bid.userId !== userId);
-                    await updateDoc(auctionRef, { bids: updatedBids });
-                }
+        async function submitBid() {
+            const bidAmount = parseInt(elements.bidAmountInput.value, 10);
+            if (isNaN(bidAmount) || bidAmount <= 0) {
+                showModal('Inserisci un importo valido e maggiore di zero.');
+                return;
+            }
+            if (bidAmount > appState.participantCredits) {
+                showModal('Non hai crediti sufficienti per questa offerta.');
+                return;
+            }
+            
+            appState.hasSubmittedBid = true;
+            render();
+            
+            const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+            
+            await updateDoc(auctionRef, {
+                bids: [...(appState.bids || []), { userId: userId, name: appState.participantName, amount: bidAmount, timestamp: new Date() }]
+            });
 
-                appState.hasSubmittedBid = false;
-                elements.bidAmountInput.value = '';
-                render();
+            elements.bidAmountInput.value = '';
+        }
 
-            } catch (error) {
-                console.error("Errore durante il cambio dell'offerta:", error);
-                showModal("Errore durante il cambio dell'offerta. Riprova.");
-            }
-        }
+        async function passBid() {
+            appState.hasSubmittedBid = true;
+            render();
+            const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
 
-        async function startNewAuction() {
-            const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
-            const auctionSnap = await getDoc(auctionRef);
+            await updateDoc(auctionRef, {
+                bids: [...(appState.bids || []), { userId: userId, name: appState.participantName, amount: 0, timestamp: new Date() }]
+            });
+        }
+        
+        async function changeBid() {
+            try {
+                const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+                const auctionSnap = await getDoc(auctionRef);
+                if (auctionSnap.exists()) {
+                    const currentBids = auctionSnap.data().bids || [];
+                    const updatedBids = currentBids.filter(bid => bid.userId !== userId);
+                    await updateDoc(auctionRef, { bids: updatedBids });
+                }
 
-            if (auctionSnap.exists()) {
-                const bids = auctionSnap.data().bids || [];
-                const validBids = bids.filter(bid => bid.amount > 0);
-                validBids.sort((a, b) => b.amount - a.amount);
-                
-                let winningBid = null;
-                let winningParticipantName = null;
-                let winningParticipantId = null;
+                appState.hasSubmittedBid = false;
+                elements.bidAmountInput.value = '';
+                render();
 
-                if (validBids.length > 0) {
-                    const winner = validBids[0];
-                    winningBid = winner.amount;
-                    winningParticipantId = winner.userId;
+            } catch (error) {
+                console.error("Errore durante il cambio dell'offerta:", error);
+                showModal("Errore durante il cambio dell'offerta. Riprova.");
+            }
+        }
 
-                    const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, winningParticipantId);
-                    const winnerSnap = await getDoc(winnerRef);
-                    if (winnerSnap.exists()) {
-                        const currentCredits = winnerSnap.data().credits;
-                        const newCredits = currentCredits - winningBid;
-                        await updateDoc(winnerRef, { credits: newCredits });
-                        winningParticipantName = winnerSnap.data().name;
-                    }
-                }
-                
-                await updateDoc(auctionRef, {
-                    winningBid: winningBid,
-                    winningParticipant: winningParticipantName
-                });
-                
-                appState.isAuctionResetting = true;
-                render();
+        async function startNewAuction() {
+            const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+            const auctionSnap = await getDoc(auctionRef);
 
-                setTimeout(async () => {
-                    await setDoc(auctionRef, {
-                        bids: [],
-                        winningBid: null,
-                        winningParticipant: null
-                    });
-                    appState.hasSubmittedBid = false;
-                    elements.bidAmountInput.value = '';
-                    appState.isAuctionResetting = false;
-                    render();
-                }, 5000);
-            }
-        }
+            if (auctionSnap.exists()) {
+                const bids = auctionSnap.data().bids || [];
+                const validBids = bids.filter(bid => bid.amount > 0);
+                validBids.sort((a, b) => b.amount - a.amount);
+                
+                let winningBid = null;
+                let winningParticipantName = null;
+                let winningParticipantId = null;
 
-        function setupListeners() {
-            const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
-            onSnapshot(participantRef, (docSnap) => {
-                if (docSnap.exists() && docSnap.data().name) {
-                    appState.participantName = docSnap.data().name;
-                    appState.participantCredits = docSnap.data().credits || 0;
-                    appState.isAdmin = docSnap.data().isAdmin || false;
-                    appState.currentScreen = 'main';
-                    setupAuctionStateListener();
-                    setupParticipantsListener();
-                    render();
-                } else {
-                    appState.currentScreen = 'auth';
-                    render();
-                }
-            });
-        }
+                if (validBids.length > 0) {
+                    const winner = validBids[0];
+                    winningBid = winner.amount;
+                    winningParticipantId = winner.userId;
 
-        function setupAuctionStateListener() {
-            const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
-            onSnapshot(auctionRef, (docSnap) => {
-                const data = docSnap.data();
-                if (data) {
-                    appState.bids = data.bids || [];
-                    appState.winningBid = data.winningBid;
-                    appState.winningParticipant = data.winningParticipant;
-                    
-                    const myBid = appState.bids.find(bid => bid.userId === userId);
-                    appState.hasSubmittedBid = !!myBid;
-                    
-                    if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
-                        // L'asta è conclusa, i risultati sono visibili
-                    } else {
-                        appState.winningBid = null;
-                        appState.winningParticipant = null;
-                    }
-                    render();
-                }
-            });
-        }
+                    const winnerRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, winningParticipantId);
+                    const winnerSnap = await getDoc(winnerRef);
+                    if (winnerSnap.exists()) {
+                        const currentCredits = winnerSnap.data().credits;
+                        const newCredits = currentCredits - winningBid;
+                        await updateDoc(winnerRef, { credits: newCredits });
+                        winningParticipantName = winnerSnap.data().name;
+                    }
+                }
+                
+                await updateDoc(auctionRef, {
+                    winningBid: winningBid,
+                    winningParticipant: winningParticipantName
+                });
+                
+                appState.isAuctionResetting = true;
+                render();
 
-        function setupParticipantsListener() {
-            const participantsCollection = collection(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID);
-            onSnapshot(participantsCollection, (querySnapshot) => {
-                appState.allParticipants = [];
-                querySnapshot.forEach(doc => {
-                    appState.allParticipants.push(doc.data());
-                });
-                appState.totalParticipants = appState.allParticipants.length;
-                render();
-            });
-        }
+                setTimeout(async () => {
+                    await setDoc(auctionRef, {
+                        bids: [],
+                        winningBid: null,
+                        winningParticipant: null
+                    });
+                    appState.hasSubmittedBid = false;
+                    elements.bidAmountInput.value = '';
+                    appState.isAuctionResetting = false;
+                    render();
+                }, 5000);
+            }
+        }
 
-        function showModal(message) {
-            const modal = document.getElementById('modal');
-            const modalMessage = document.getElementById('modal-message');
-            const closeModalBtn = document.getElementById('close-modal-btn');
-            modalMessage.textContent = message;
-            modal.classList.remove('hidden');
-            closeModalBtn.onclick = () => modal.classList.add('hidden');
-        }
-        
-        async function logout() {
-            const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
-            await deleteDoc(publicParticipantRef);
-            await signOut(auth);
-            location.reload();
-        }
-        
-        window.onload = async () => {
-            await initializeFirebase();
-        };
-        elements.saveNameBtn.addEventListener('click', saveParticipantName);
-        elements.bidForm.addEventListener('submit', (e) => { e.preventDefault(); submitBid(); });
-        elements.passBidBtn.addEventListener('click', passBid);
-        elements.startNewAuctionBtn.addEventListener('click', startNewAuction);
-        elements.logoutBtn.addEventListener('click', logout);
-        elements.changeBidBtn.addEventListener('click', changeBid);
-    </script>
+        function setupListeners() {
+            const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
+            onSnapshot(participantRef, (docSnap) => {
+                if (docSnap.exists() && docSnap.data().name) {
+                    appState.participantName = docSnap.data().name;
+                    appState.participantCredits = docSnap.data().credits || 0;
+                    appState.isAdmin = docSnap.data().isAdmin || false;
+                    appState.currentScreen = 'main';
+                    setupAuctionStateListener();
+                    setupParticipantsListener();
+                    render();
+                } else {
+                    appState.currentScreen = 'auth';
+                    render();
+                }
+            });
+        }
+
+        function setupAuctionStateListener() {
+            const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
+            onSnapshot(auctionRef, (docSnap) => {
+                const data = docSnap.data();
+                if (data) {
+                    appState.bids = data.bids || [];
+                    appState.winningBid = data.winningBid;
+                    appState.winningParticipant = data.winningParticipant;
+                    
+                    const myBid = appState.bids.find(bid => bid.userId === userId);
+                    appState.hasSubmittedBid = !!myBid;
+                    
+                    if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
+                        // L'asta è conclusa, i risultati sono visibili
+                    } else {
+                        appState.winningBid = null;
+                        appState.winningParticipant = null;
+                    }
+                    render();
+                }
+            });
+        }
+
+        function setupParticipantsListener() {
+            const participantsCollection = collection(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID);
+            onSnapshot(participantsCollection, (querySnapshot) => {
+                appState.allParticipants = [];
+                querySnapshot.forEach(doc => {
+                    appState.allParticipants.push(doc.data());
+                });
+                appState.totalParticipants = appState.allParticipants.length;
+                render();
+            });
+        }
+
+        function showModal(message) {
+            const modal = document.getElementById('modal');
+            const modalMessage = document.getElementById('modal-message');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            modalMessage.textContent = message;
+            modal.classList.remove('hidden');
+            closeModalBtn.onclick = () => modal.classList.add('hidden');
+        }
+        
+        async function logout() {
+            const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
+            await deleteDoc(publicParticipantRef);
+            await signOut(auth);
+            location.reload();
+        }
+        
+        window.onload = async () => {
+            await initializeFirebase();
+        };
+        elements.saveNameBtn.addEventListener('click', saveParticipantName);
+        elements.bidForm.addEventListener('submit', (e) => { e.preventDefault(); submitBid(); });
+        elements.passBidBtn.addEventListener('click', passBid);
+        elements.startNewAuctionBtn.addEventListener('click', startNewAuction);
+        elements.logoutBtn.addEventListener('click', logout);
+        elements.changeBidBtn.addEventListener('click', changeBid);
+    </script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans p-4 flex flex-col items-center justify-center min-h-screen">
 
-    <div id="auth-screen" class="hidden bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
-        <h1 class="text-3xl font-bold text-center mb-6 text-indigo-600">Asta Fanta</h1>
-        <p class="text-center text-gray-600 mb-4">Inserisci il tuo nome per iniziare.</p>
-        <div class="space-y-4">
-            <input type="text" id="name-input" placeholder="Il tuo nome" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <input type="password" id="admin-code-input" placeholder="Codice Admin (opzionale)" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <button id="save-name-btn" class="w-full bg-indigo-600 text-white p-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors duration-200">Salva Nome</button>
-        </div>
-    </div>
+    <div id="auth-screen" class="hidden bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
+        <h1 class="text-3xl font-bold text-center mb-6 text-indigo-600">Asta Fanta</h1>
+        <p class="text-center text-gray-600 mb-4">Inserisci il tuo nome per iniziare.</p>
+        <div class="space-y-4">
+            <input type="text" id="name-input" placeholder="Il tuo nome" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <input type="password" id="admin-code-input" placeholder="Codice Admin (opzionale)" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <button id="save-name-btn" class="w-full bg-indigo-600 text-white p-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors duration-200">Salva Nome</button>
+        </div>
+    </div>
 
-    <div id="main-screen" class="hidden bg-white p-8 rounded-xl shadow-lg w-full max-w-lg text-center">
-        <div class="mb-4">
-            <h2 id="display-name" class="text-2xl font-bold text-indigo-600"></h2>
-            <p id="display-user-id" class="text-sm text-gray-500"></p>
-            <p id="my-credits-display" class="text-md font-medium text-gray-700 mt-2"></p>
-        </div>
+    <div id="main-screen" class="hidden bg-white p-8 rounded-xl shadow-lg w-full max-w-lg text-center">
+        <div class="mb-4">
+            <h2 id="display-name" class="text-2xl font-bold text-indigo-600"></h2>
+            <p id="display-user-id" class="text-sm text-gray-500"></p>
+            <p id="my-credits-display" class="text-md font-medium text-gray-700 mt-2"></p>
+        </div>
 
-        <div class="mb-6">
-            <p id="current-player-display" class="text-2xl font-extrabold text-gray-900 mt-2"></p>
-        </div>
+        <div class="mb-6">
+            <p id="current-player-display" class="text-2xl font-extrabold text-gray-900 mt-2"></p>
+        </div>
 
-        <div id="bidding-section">
-            <p id="bidding-status" class="text-md text-gray-500 font-medium my-4 hidden"></p>
-            <p id="waiting-message" class="text-md text-gray-500 font-medium my-4 hidden">Offerta inviata. Attendi gli altri partecipanti...</p>
+        <div id="bidding-section">
+            <p id="bidding-status" class="text-md text-gray-500 font-medium my-4 hidden"></p>
+            <p id="waiting-message" class="text-md text-gray-500 font-medium my-4 hidden">Offerta inviata. Attendi gli altri partecipanti...</p>
 
-            <form id="bid-form" class="space-y-4 hidden">
-                <input type="number" id="bid-amount-input" placeholder="La tua offerta in €" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <div class="flex space-x-2">
-                    <button type="button" id="pass-bid-btn" class="flex-1 bg-red-500 text-white p-3 rounded-lg font-semibold hover:bg-red-600 transition-colors duration-200">Non Offro</button>
-                    <button type="submit" id="submit-bid-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600 transition-colors duration-200">Offro</button>
-                </div>
-            </form>
-            <button id="change-bid-btn" class="w-full mt-4 bg-yellow-500 text-white p-3 rounded-lg font-semibold hover:bg-yellow-600 transition-colors duration-200 hidden">Cambia Offerta</button>
-        </div>
-        
-        <div id="results-screen" class="hidden my-6">
-            <h3 class="text-xl font-semibold text-gray-700">Risultato Asta</h3>
-            <p id="winning-participant-display" class="text-2xl font-bold text-green-600 mt-2"></p>
-            <p id="winning-bid-display" class="text-xl text-gray-800 mt-1"></p>
-            <div id="admin-button-container">
-                <button id="start-new-auction-btn" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200">Avvia Nuova Asta</button>
-            </div>
-        </div>
+            <form id="bid-form" class="space-y-4 hidden">
+                <input type="number" id="bid-amount-input" placeholder="La tua offerta in €" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <div class="flex space-x-2">
+                    <button type="button" id="pass-bid-btn" class="flex-1 bg-red-500 text-white p-3 rounded-lg font-semibold hover:bg-red-600 transition-colors duration-200">Non Offro</button>
+                    <button type="submit" id="submit-bid-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600 transition-colors duration-200">Offro</button>
+                </div>
+            </form>
+            <button id="change-bid-btn" class="w-full mt-4 bg-yellow-500 text-white p-3 rounded-lg font-semibold hover:bg-yellow-600 transition-colors duration-200 hidden">Cambia Offerta</button>
+        </div>
+        
+        <div id="results-screen" class="hidden my-6">
+            <h3 class="text-xl font-semibold text-gray-700">Risultato Asta</h3>
+            <p id="winning-participant-display" class="text-2xl font-bold text-green-600 mt-2"></p>
+            <p id="winning-bid-display" class="text-xl text-gray-800 mt-1"></p>
+            <div id="admin-button-container">
+                <button id="start-new-auction-btn" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200">Avvia Nuova Asta</button>
+            </div>
+        </div>
 
-        <div class="mt-8 pt-4 border-t-2 border-gray-200">
-            <h4 class="text-lg font-bold text-gray-700">Partecipanti</h4>
-            <ul id="participants-list" class="mt-4 space-y-2 text-left"></ul>
-        </div>
-        <button id="logout-btn" class="w-full mt-4 bg-gray-400 text-white p-3 rounded-lg font-semibold hover:bg-gray-500 transition-colors duration-200">Esci</button>
-    </div>
-    
-    <div id="modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
-        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
-            <p id="modal-message" class="text-center text-gray-700 font-medium mb-4"></p>
-            <div class="text-center">
-                <button id="close-modal-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">OK</button>
-            </div>
-        </div>
-    </div>
+        <div class="mt-8 pt-4 border-t-2 border-gray-200">
+            <h4 class="text-lg font-bold text-gray-700">Partecipanti</h4>
+            <ul id="participants-list" class="mt-4 space-y-2 text-left"></ul>
+        </div>
+        <button id="logout-btn" class="w-full mt-4 bg-gray-400 text-white p-3 rounded-lg font-semibold hover:bg-gray-500 transition-colors duration-200">Esci</button>
+    </div>
+    
+    <div id="modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+            <p id="modal-message" class="text-center text-gray-700 font-medium mb-4"></p>
+            <div class="text-center">
+                <button id="close-modal-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">OK</button>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>
