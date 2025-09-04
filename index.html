@@ -124,27 +124,35 @@
                     elements.myCreditsDisplay.textContent = `Crediti rimanenti: €${appState.participantCredits}`;
                     elements.currentPlayerDisplay.textContent = `Giocatore all'asta: ${appState.currentPlayer}`;
                     
-                    if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
+                    // Logica di visualizzazione basata sullo stato dell'asta e sul ruolo
+                    const allBidsSubmitted = appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0;
+                    
+                    if (allBidsSubmitted) {
                         elements.resultsScreen.classList.remove('hidden');
                         elements.winningBidDisplay.textContent = appState.winningBid !== null ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
                         elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
                         
-                        // MODIFICA: Il bottone "Cambia Offerta" è disabilitato per tutti durante il reset
                         elements.changeBidBtn.classList.remove('hidden');
                         elements.changeBidBtn.disabled = appState.isAuctionResetting;
                         elements.changeBidBtn.textContent = appState.isAuctionResetting ? 'Attendere...' : 'Cambia Offerta';
                         
                         if (appState.isAdmin) {
                             elements.startNewAuctionBtn.classList.remove('hidden');
-                            // L'admin può sempre premere questo bottone per avviare il processo
                             elements.startNewAuctionBtn.disabled = false;
                         }
-                    } else if (appState.hasSubmittedBid) {
+                    } else if (appState.hasSubmittedBid && !appState.isAdmin) {
                         elements.waitingMessage.classList.remove('hidden');
                         elements.changeBidBtn.classList.remove('hidden');
                         elements.changeBidBtn.disabled = false;
                         elements.changeBidBtn.textContent = 'Cambia Offerta';
+                    } else if (appState.isAdmin) {
+                        // L'admin vede sempre il form di offerta, anche dopo aver offerto
+                        elements.bidForm.classList.remove('hidden');
+                        elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
+                        elements.biddingStatus.classList.remove('hidden');
+                        elements.changeBidBtn.classList.add('hidden');
                     } else {
+                        // Logica di base per i partecipanti
                         elements.bidForm.classList.remove('hidden');
                         elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
                         elements.biddingStatus.classList.remove('hidden');
