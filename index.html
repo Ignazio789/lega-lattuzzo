@@ -22,7 +22,7 @@
             appId: "1:925081312945:web:a09df8e2bfd62676a18c90",
             measurementId: "G-0BZPZQ4JE2"
         };
-        
+        
         let db, auth;
         let userId;
         const AUCTION_STATE_DOC_ID = "auction_state";
@@ -61,7 +61,8 @@
             winningBid: null,
             winningParticipant: null,
             allParticipants: [],
-            isAdmin: false
+            isAdmin: false,
+            isAuctionResetting: false
         };
 
         const elements = {
@@ -127,12 +128,22 @@
                         elements.resultsScreen.classList.remove('hidden');
                         elements.winningBidDisplay.textContent = appState.winningBid !== null ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
                         elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
+                        
+                        // MODIFICA: Il bottone "Cambia Offerta" è disabilitato per tutti durante il reset
+                        elements.changeBidBtn.classList.remove('hidden');
+                        elements.changeBidBtn.disabled = appState.isAuctionResetting;
+                        elements.changeBidBtn.textContent = appState.isAuctionResetting ? 'Attendere...' : 'Cambia Offerta';
+                        
                         if (appState.isAdmin) {
                             elements.startNewAuctionBtn.classList.remove('hidden');
+                            // L'admin può sempre premere questo bottone per avviare il processo
+                            elements.startNewAuctionBtn.disabled = false;
                         }
                     } else if (appState.hasSubmittedBid) {
                         elements.waitingMessage.classList.remove('hidden');
                         elements.changeBidBtn.classList.remove('hidden');
+                        elements.changeBidBtn.disabled = false;
+                        elements.changeBidBtn.textContent = 'Cambia Offerta';
                     } else {
                         elements.bidForm.classList.remove('hidden');
                         elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
@@ -145,14 +156,14 @@
         async function saveParticipantName() {
             const name = elements.nameInput.value.trim();
             const adminCode = elements.adminCodeInput.value.trim();
-            
+            
             if (name) {
                 const initialCredits = 300;
                 const isAdmin = adminCode === ADMIN_SECRET_CODE;
-                
+                
                 const participantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
                 await setDoc(participantRef, { name: name, credits: initialCredits, userId: userId, isAdmin: isAdmin });
-                
+                
                 const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
                 const auctionSnap = await getDoc(auctionRef);
                 if (!auctionSnap.exists()) {
@@ -162,7 +173,7 @@
                         winningParticipant: null
                     });
                 }
-                
+                
                 appState.participantName = name;
                 appState.participantCredits = initialCredits;
                 appState.isAdmin = isAdmin;
@@ -183,12 +194,12 @@
                 showModal('Non hai crediti sufficienti per questa offerta.');
                 return;
             }
-            
+            
             appState.hasSubmittedBid = true;
             render();
-            
+            
             const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
-            
+            
             await updateDoc(auctionRef, {
                 bids: [...(appState.bids || []), { userId: userId, name: appState.participantName, amount: bidAmount, timestamp: new Date() }]
             });
@@ -205,7 +216,7 @@
                 bids: [...(appState.bids || []), { userId: userId, name: appState.participantName, amount: 0, timestamp: new Date() }]
             });
         }
-        
+        
         async function changeBid() {
             try {
                 const auctionRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', AUCTION_COLLECTION_ID, AUCTION_STATE_DOC_ID);
@@ -232,8 +243,6 @@
 
             if (auctionSnap.exists()) {
                 const bids = auctionSnap.data().bids || [];
-
-                // Filtra le offerte valide e ordinale in ordine decrescente
                 const validBids = bids.filter(bid => bid.amount > 0);
                 validBids.sort((a, b) => b.amount - a.amount);
                 
@@ -255,11 +264,14 @@
                         winningParticipantName = winnerSnap.data().name;
                     }
                 }
-                
+                
                 await updateDoc(auctionRef, {
                     winningBid: winningBid,
                     winningParticipant: winningParticipantName
                 });
+                
+                appState.isAuctionResetting = true;
+                render();
 
                 setTimeout(async () => {
                     await setDoc(auctionRef, {
@@ -269,6 +281,7 @@
                     });
                     appState.hasSubmittedBid = false;
                     elements.bidAmountInput.value = '';
+                    appState.isAuctionResetting = false;
                     render();
                 }, 5000);
             }
@@ -300,12 +313,12 @@
                     appState.bids = data.bids || [];
                     appState.winningBid = data.winningBid;
                     appState.winningParticipant = data.winningParticipant;
-                    
+                    
                     const myBid = appState.bids.find(bid => bid.userId === userId);
                     appState.hasSubmittedBid = !!myBid;
-                    
+                    
                     if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
-                        // Nothing to do here, render handles displaying the result screen
+                        // L'asta è conclusa, i risultati sono visibili
                     } else {
                         appState.winningBid = null;
                         appState.winningParticipant = null;
@@ -335,14 +348,14 @@
             modal.classList.remove('hidden');
             closeModalBtn.onclick = () => modal.classList.add('hidden');
         }
-        
+        
         async function logout() {
             const publicParticipantRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', PARTICIPANTS_COLLECTION_ID, userId);
             await deleteDoc(publicParticipantRef);
             await signOut(auth);
             location.reload();
         }
-        
+        
         window.onload = async () => {
             await initializeFirebase();
         };
@@ -390,7 +403,7 @@
             </form>
             <button id="change-bid-btn" class="w-full mt-4 bg-yellow-500 text-white p-3 rounded-lg font-semibold hover:bg-yellow-600 transition-colors duration-200 hidden">Cambia Offerta</button>
         </div>
-        
+        
         <div id="results-screen" class="hidden my-6">
             <h3 class="text-xl font-semibold text-gray-700">Risultato Asta</h3>
             <p id="winning-participant-display" class="text-2xl font-bold text-green-600 mt-2"></p>
@@ -406,7 +419,7 @@
         </div>
         <button id="logout-btn" class="w-full mt-4 bg-gray-400 text-white p-3 rounded-lg font-semibold hover:bg-gray-500 transition-colors duration-200">Esci</button>
     </div>
-    
+    
     <div id="modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
         <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
             <p id="modal-message" class="text-center text-gray-700 font-medium mb-4"></p>
