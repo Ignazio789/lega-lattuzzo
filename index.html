@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -15,9 +16,9 @@
         // --- IMPORTANTE: INCOLLA QUI LA TUA CONFIGURAZIONE DI FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyCFFkUbEhY6Rn515DbRbLsa5lqQDu1R5Jc",
-            authDomain: "app-asta-fanta-lattuzzo.firebaseapp.com",
-            projectId: "app-asta-fanta-lattuzzo",
-            storageBucket: "app-asta-fanta-lattuzzo.firebasestorage.app",
+            authDomain: "app-asta-fanta-lattuzo.firebaseapp.com",
+            projectId: "app-asta-fanta-lattuzo",
+            storageBucket: "app-asta-fanta-lattuzo.firebasestorage.app",
             messagingSenderId: "925081312945",
             appId: "1:925081312945:web:a09df8e2bfd62676a18c90",
             measurementId: "G-0BZPZQ4JE2"
@@ -61,8 +62,7 @@
             winningBid: null,
             winningParticipant: null,
             allParticipants: [],
-            isAdmin: false,
-            isAuctionResetting: false
+            isAdmin: false
         };
 
         const elements = {
@@ -124,32 +124,21 @@
                     elements.myCreditsDisplay.textContent = `Crediti rimanenti: €${appState.participantCredits}`;
                     elements.currentPlayerDisplay.textContent = `Giocatore all'asta: ${appState.currentPlayer}`;
                     
-                    const allBidsSubmitted = appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0;
-
-                    if (allBidsSubmitted) {
+                    if (appState.bids.length >= appState.totalParticipants && appState.totalParticipants > 0) {
                         elements.resultsScreen.classList.remove('hidden');
                         elements.winningBidDisplay.textContent = appState.winningBid !== null ? `Offerta: €${appState.winningBid}` : 'Nessuna offerta valida';
                         elements.winningParticipantDisplay.textContent = appState.winningParticipant ? `Vincitore: ${appState.winningParticipant}` : '';
-                        
-                        // Solo l'admin vede questo pulsante dopo che tutti hanno offerto
                         if (appState.isAdmin) {
                             elements.startNewAuctionBtn.classList.remove('hidden');
-                            elements.startNewAuctionBtn.disabled = appState.isAuctionResetting;
                         }
                     } else if (appState.hasSubmittedBid) {
                         elements.waitingMessage.classList.remove('hidden');
+                        elements.changeBidBtn.classList.remove('hidden');
                     } else {
                         elements.bidForm.classList.remove('hidden');
                         elements.biddingStatus.textContent = `Offerte ricevute: ${appState.bids.length} di ${appState.totalParticipants}`;
                         elements.biddingStatus.classList.remove('hidden');
                     }
-                    
-                    if (appState.hasSubmittedBid || appState.isAdmin) {
-                        elements.changeBidBtn.classList.remove('hidden');
-                        elements.changeBidBtn.disabled = appState.isAuctionResetting;
-                        elements.changeBidBtn.textContent = appState.isAuctionResetting ? 'Attendere...' : 'Cambia Offerta';
-                    }
-                    
                     break;
             }
         }
@@ -178,7 +167,6 @@
                 appState.participantName = name;
                 appState.participantCredits = initialCredits;
                 appState.isAdmin = isAdmin;
-                console.log("Admin status set to: ", appState.isAdmin);
                 appState.currentScreen = 'main';
                 render();
             } else {
@@ -245,6 +233,8 @@
 
             if (auctionSnap.exists()) {
                 const bids = auctionSnap.data().bids || [];
+
+                // Filtra le offerte valide e ordinale in ordine decrescente
                 const validBids = bids.filter(bid => bid.amount > 0);
                 validBids.sort((a, b) => b.amount - a.amount);
                 
@@ -267,14 +257,11 @@
                     }
                 }
                 
-                appState.isAuctionResetting = true;
-                render();
-
                 await updateDoc(auctionRef, {
                     winningBid: winningBid,
                     winningParticipant: winningParticipantName
                 });
-                
+
                 setTimeout(async () => {
                     await setDoc(auctionRef, {
                         bids: [],
@@ -283,7 +270,6 @@
                     });
                     appState.hasSubmittedBid = false;
                     elements.bidAmountInput.value = '';
-                    appState.isAuctionResetting = false;
                     render();
                 }, 5000);
             }
@@ -410,10 +396,9 @@
             <h3 class="text-xl font-semibold text-gray-700">Risultato Asta</h3>
             <p id="winning-participant-display" class="text-2xl font-bold text-green-600 mt-2"></p>
             <p id="winning-bid-display" class="text-xl text-gray-800 mt-1"></p>
-        </div>
-        
-        <div id="admin-button-container" class="mt-4">
-            <button id="start-new-auction-btn" class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 hidden">Avvia Nuova Asta</button>
+            <div id="admin-button-container">
+                <button id="start-new-auction-btn" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200">Avvia Nuova Asta</button>
+            </div>
         </div>
 
         <div class="mt-8 pt-4 border-t-2 border-gray-200">
